@@ -24,8 +24,10 @@ export const SCORE_CAP = 30;
 export const WIN_BY = 2;
 
 /** Shared hall shell (exterior + interior doorway alignment). */
-export const HALL_FLOOR_PAD = 3.2;
-export const HALL_WALL_H = 8.5;
+// Keep the regulation court unchanged while giving the surrounding hall
+// generous run-off and overhead clearance.
+export const HALL_FLOOR_PAD = 6.4;
+export const HALL_WALL_H = 11;
 export const HALL_WALL_T = 0.2;
 export const HALL_DOOR_W = 2.4;
 export const HALL_DOOR_H = 2.9;

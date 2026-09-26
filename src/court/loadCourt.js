@@ -208,7 +208,9 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   const hw = COURT_WIDTH / 2;
   const lw = 0.04;
   const ly = 0.028;
-  const floorPad = isWood ? 3.2 : 2.8;
+  // The court remains regulation size; only the surrounding playing hall
+  // grows around it.
+  const floorPad = HALL_FLOOR_PAD;
 
   // MeshBasicMaterial so court/lines read vividly without depending on lights.
   const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -354,7 +356,7 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   // Interior hall — sealed with doorway on near (−Z) so exterior enter works.
   // Shell uses shared HALL_* so doorway lines up with exterior facade.
   // Camera lands inside after enter; ceiling + walls OK. Court stays MeshBasic.
-  const wallH = isWood ? 7.5 : HALL_WALL_H;
+  const wallH = HALL_WALL_H;
   const roomW = COURT_WIDTH + HALL_FLOOR_PAD * 2 + 0.2;
   const roomL = COURT_LENGTH + HALL_FLOOR_PAD * 2 + 0.2;
   const wallT = HALL_WALL_T;
@@ -409,7 +411,7 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
     root.add(band);
     const pillarMat = new THREE.MeshBasicMaterial({ color: 0x757980 });
     for (const x of [-roomW / 2, roomW / 2]) {
-      for (const z of [-5, 0, 5]) {
+      for (const z of [-roomL / 4, 0, roomL / 4]) {
         const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.35, wallH, 0.35), pillarMat);
         pillar.position.set(x > 0 ? x - 0.15 : x + 0.15, wallH / 2, z);
         root.add(pillar);
@@ -424,7 +426,7 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
 
   // Roof beams under ceiling (hall character from open-hall design)
   const beamY = wallH - 0.35;
-  for (const z of [-6, -2, 2, 6]) {
+  for (const z of [-roomL / 3, -roomL / 9, roomL / 9, roomL / 3]) {
     const beam = new THREE.Mesh(new THREE.BoxGeometry(roomW - 0.4, 0.18, 0.28), ceilingMat);
     beam.position.set(0, beamY, z);
     root.add(beam);
@@ -435,9 +437,10 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
     root.add(ridge);
   }
 
-  for (const z of [-4, 0, 4]) {
+  const fixtureY = wallH - 1.6;
+  for (const z of [-roomL / 4, 0, roomL / 4]) {
     const fix = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.25), fixtureMat);
-    fix.position.set(-roomW / 2 + 0.2, isWood ? 5.2 : 5.8, z);
+    fix.position.set(-roomW / 2 + 0.2, fixtureY, z);
     root.add(fix);
     const fix2 = fix.clone();
     fix2.position.x = roomW / 2 - 0.2;

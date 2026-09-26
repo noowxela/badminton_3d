@@ -17,11 +17,11 @@ import { createExteriorBuilding, applyExteriorAtmosphere } from './building/exte
 import { EnterFlow, ViewState } from './building/enterFlow.js';
 
 /**
- * Interior broadcast camera — inside the sealed hall (near wall ~−10),
+ * Interior broadcast camera — inside the enlarged sealed hall (near wall ~−13),
  * looking down the full court.
  */
-const INTERIOR_CAMERA_POS = Object.freeze({ x: 0, y: 8.5, z: -7.2 });
-const INTERIOR_CAMERA_TARGET = Object.freeze({ x: 0, y: 0.4, z: 1.5 });
+const INTERIOR_CAMERA_POS = Object.freeze({ x: 0, y: 9.4, z: -9.4 });
+const INTERIOR_CAMERA_TARGET = Object.freeze({ x: 0, y: 0.5, z: 1.7 });
 
 const canvas = document.getElementById('game-canvas');
 const hud = new Hud();
