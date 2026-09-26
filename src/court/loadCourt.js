@@ -7,6 +7,11 @@ import {
   SHORT_SERVICE,
   LONG_SERVICE_INSET,
   SINGLES_INSET,
+  HALL_FLOOR_PAD,
+  HALL_WALL_H,
+  HALL_WALL_T,
+  HALL_DOOR_W,
+  HALL_DOOR_H,
 } from './constants.js';
 
 export const COURT_STYLES = {
@@ -14,16 +19,16 @@ export const COURT_STYLES = {
     id: 'pro-mat',
     label: 'Pro Mat',
     fog: 0x4a5560,
-    fogNear: 60,
-    fogFar: 120,
+    fogNear: 45,
+    fogFar: 95,
     bg: 0x3a4550,
   },
   'wood-hall': {
     id: 'wood-hall',
     label: 'Wood Hall',
     fog: 0xc5d0a0,
-    fogNear: 50,
-    fogFar: 100,
+    fogNear: 40,
+    fogFar: 85,
     bg: 0xb8c96a,
   },
 };
@@ -346,21 +351,105 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   cord.position.set(0, 0.09, 0);
   root.add(cord);
 
-  // Far backdrop only — cannot occlude court from default camera at -Z.
-  // No side walls, pillars, corrugated bands, ceiling, or roof beams.
-  const backdropMat = new THREE.MeshBasicMaterial({
-    color: isWood ? 0xa8b85a : 0x2a3540,
+  // Interior hall — sealed with doorway on near (−Z) so exterior enter works.
+  // Shell uses shared HALL_* so doorway lines up with exterior facade.
+  // Camera lands inside after enter; ceiling + walls OK. Court stays MeshBasic.
+  const wallH = isWood ? 7.5 : HALL_WALL_H;
+  const roomW = COURT_WIDTH + HALL_FLOOR_PAD * 2 + 0.2;
+  const roomL = COURT_LENGTH + HALL_FLOOR_PAD * 2 + 0.2;
+  const wallT = HALL_WALL_T;
+  const doorW = HALL_DOOR_W;
+  const doorH = HALL_DOOR_H;
+
+  const wallMat = new THREE.MeshBasicMaterial({
+    color: isWood ? 0xb8c96a : 0x8a8e94,
     side: THREE.DoubleSide,
   });
-  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), backdropMat);
-  backdrop.position.set(0, 8, 28);
-  root.add(backdrop);
+  const ceilingMat = new THREE.MeshBasicMaterial({
+    color: isWood ? 0xe8ecd8 : 0x3a3e44,
+  });
+  const fixtureMat = new THREE.MeshBasicMaterial({
+    color: isWood ? 0x1a1a1a : 0x22262c,
+  });
 
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(roomW, wallH, wallT), wallMat);
+  backWall.position.set(0, wallH / 2, roomL / 2);
+  backWall.receiveShadow = true;
+  root.add(backWall);
+
+  // Near wall with doorway opening (left / right / lintel)
+  const nearZ = -roomL / 2;
+  const sidePanelW = (roomW - doorW) / 2;
+  const nearLeft = new THREE.Mesh(new THREE.BoxGeometry(sidePanelW, wallH, wallT), wallMat);
+  nearLeft.position.set(-(doorW / 2 + sidePanelW / 2), wallH / 2, nearZ);
+  nearLeft.receiveShadow = true;
+  root.add(nearLeft);
+  const nearRight = nearLeft.clone();
+  nearRight.position.x = doorW / 2 + sidePanelW / 2;
+  root.add(nearRight);
+  const lintelH = wallH - doorH;
+  const nearLintel = new THREE.Mesh(new THREE.BoxGeometry(doorW, lintelH, wallT), wallMat);
+  nearLintel.position.set(0, doorH + lintelH / 2, nearZ);
+  nearLintel.receiveShadow = true;
+  root.add(nearLintel);
+
+  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomL), wallMat);
+  leftWall.position.set(-roomW / 2, wallH / 2, 0);
+  leftWall.receiveShadow = true;
+  root.add(leftWall);
+  const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomL), wallMat);
+  rightWall.position.set(roomW / 2, wallH / 2, 0);
+  rightWall.receiveShadow = true;
+  root.add(rightWall);
+
+  if (!isWood) {
+    const upperMat = new THREE.MeshBasicMaterial({ color: 0x6e7278 });
+    const band = new THREE.Mesh(new THREE.BoxGeometry(roomW, 1.8, wallT * 0.9), upperMat);
+    band.position.set(0, wallH - 0.9, roomL / 2 - 0.02);
+    root.add(band);
+    const pillarMat = new THREE.MeshBasicMaterial({ color: 0x757980 });
+    for (const x of [-roomW / 2, roomW / 2]) {
+      for (const z of [-5, 0, 5]) {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.35, wallH, 0.35), pillarMat);
+        pillar.position.set(x > 0 ? x - 0.15 : x + 0.15, wallH / 2, z);
+        root.add(pillar);
+      }
+    }
+  }
+
+  // Ceiling slab (camera starts inside after enter)
+  const ceiling = new THREE.Mesh(new THREE.BoxGeometry(roomW, 0.15, roomL), ceilingMat);
+  ceiling.position.y = wallH;
+  root.add(ceiling);
+
+  // Roof beams under ceiling (hall character from open-hall design)
+  const beamY = wallH - 0.35;
+  for (const z of [-6, -2, 2, 6]) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(roomW - 0.4, 0.18, 0.28), ceilingMat);
+    beam.position.set(0, beamY, z);
+    root.add(beam);
+  }
+  for (const x of [-roomW / 4, roomW / 4]) {
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, roomL - 0.6), ceilingMat);
+    ridge.position.set(x, beamY + 0.12, 0);
+    root.add(ridge);
+  }
+
+  for (const z of [-4, 0, 4]) {
+    const fix = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.25), fixtureMat);
+    fix.position.set(-roomW / 2 + 0.2, isWood ? 5.2 : 5.8, z);
+    root.add(fix);
+    const fix2 = fix.clone();
+    fix2.position.x = roomW / 2 - 0.2;
+    root.add(fix2);
+  }
+
+  root.userData.hall = { roomW, roomL, wallH, nearZ, doorW, doorH };
   return root;
 }
 
 export function normalizeCourtOrientation(root) {
-  // Procedural courts already use X=width / Z=length; no hall to reorient.
+  // Procedural courts already use X=width / Z=length; never spin the hall.
   if (root?.userData?.courtStyle) return;
   const box = new THREE.Box3().setFromObject(root);
   const size = new THREE.Vector3();

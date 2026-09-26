@@ -31,14 +31,20 @@ npm run build
 npm run preview
 ```
 
+## Enter the hall
+
+App starts **outside** a badminton-hall building. Hover the door to open it; **click the door** to walk the camera inside to the broadcast court view, then play as usual.
+
 ## Controls
 
 | Input | Action |
 |--------|--------|
+| **Hover door** (outside) | Door opens |
+| **Click door** (outside) | Enter hall → gameplay |
 | **W A S D** / arrows | Move (human, own half) |
 | **Mouse** | Aim landing target (opponent half) |
-| **Click** / **Space** | Serve or hit |
-| **Right-drag** | Orbit camera |
+| **Click** / **Space** | Serve or hit (inside only) |
+| **Right-drag** | Orbit camera (inside) |
 | **Middle-drag** | Pan camera |
 | **Wheel** | Zoom |
 | **Reset view** (HUD) | Restore default broadcast camera |
@@ -54,8 +60,9 @@ badminton_3d/
 ├── scripts/export-court.sh
 ├── public/assets/court.glb  # exported asset
 ├── src/
-│   ├── main.js              # scene, loop, input
-│   ├── court/               # dimensions, glTF load + fallback
+│   ├── main.js              # scene, loop, input, enter flow
+│   ├── building/            # exterior hall + door enter
+│   ├── court/               # dimensions, procedural hall court
 │   ├── physics/shuttle.js   # gravity + drag arc
 │   ├── players/player.js    # human + stubs
 │   ├── ai/simpleAi.js       # cover / hit heuristics

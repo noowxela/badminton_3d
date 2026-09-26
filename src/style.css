@@ -156,3 +156,14 @@ body,
   text-align: center;
   max-width: 92vw;
 }
+
+#scoreboard.hud-dim,
+.court-style.hud-dim,
+.cam-controls.hud-dim {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+#game-canvas.door-hover {
+  cursor: pointer;
+}

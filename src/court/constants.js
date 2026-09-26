@@ -22,3 +22,11 @@ export const TEAM = {
 export const SCORE_TO_WIN = 21;
 export const SCORE_CAP = 30;
 export const WIN_BY = 2;
+
+/** Shared hall shell (exterior + interior doorway alignment). */
+export const HALL_FLOOR_PAD = 3.2;
+export const HALL_WALL_H = 8.5;
+export const HALL_WALL_T = 0.2;
+export const HALL_DOOR_W = 2.4;
+export const HALL_DOOR_H = 2.9;
+

@@ -13,10 +13,15 @@ import { createDoublesRoster } from './players/player.js';
 import { SimpleAi } from './ai/simpleAi.js';
 import { Hud } from './ui/hud.js';
 import { Match } from './game/match.js';
+import { createExteriorBuilding, applyExteriorAtmosphere } from './building/exterior.js';
+import { EnterFlow, ViewState } from './building/enterFlow.js';
 
-/** Broadcast / TV high-angle — pulled back so full green court frames clearly. */
-const DEFAULT_CAMERA_POS = Object.freeze({ x: 0, y: 12, z: -16 });
-const DEFAULT_CAMERA_TARGET = Object.freeze({ x: 0, y: 0, z: 0 });
+/**
+ * Interior broadcast camera — inside the sealed hall (near wall ~−10),
+ * looking down the full court.
+ */
+const INTERIOR_CAMERA_POS = Object.freeze({ x: 0, y: 8.5, z: -7.2 });
+const INTERIOR_CAMERA_TARGET = Object.freeze({ x: 0, y: 0.4, z: 1.5 });
 
 const canvas = document.getElementById('game-canvas');
 const hud = new Hud();
@@ -29,22 +34,22 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-applyStyleAtmosphere(scene, getSavedCourtStyle());
+applyExteriorAtmosphere(scene);
 
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(DEFAULT_CAMERA_POS.x, DEFAULT_CAMERA_POS.y, DEFAULT_CAMERA_POS.z);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(0, 3.6, -22);
 
 const controls = new OrbitControls(camera, canvas);
-controls.target.set(DEFAULT_CAMERA_TARGET.x, DEFAULT_CAMERA_TARGET.y, DEFAULT_CAMERA_TARGET.z);
+controls.target.set(0, 1.6, -10);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 6;
-controls.maxDistance = 36;
-controls.minPolarAngle = 0.2;
-controls.maxPolarAngle = Math.PI / 2 - 0.08;
+controls.maxDistance = 28;
+controls.minPolarAngle = 0.15;
+controls.maxPolarAngle = Math.PI / 2 - 0.05;
 controls.enablePan = true;
 controls.screenSpacePanning = false;
-// Left-click stays hit/serve; right-drag orbits; middle pans; wheel zooms.
+// Left-click: door enter (exterior) / hit-serve (inside); right-drag orbits when inside.
 controls.mouseButtons = {
   LEFT: null,
   MIDDLE: THREE.MOUSE.PAN,
@@ -58,37 +63,48 @@ controls.update();
 controls.saveState();
 
 function resetCameraView() {
+  if (!enterFlow?.isInside) return;
   controls.reset();
 }
 
 function clampOrbitTarget() {
+  if (!enterFlow?.isInside) return;
   controls.target.x = THREE.MathUtils.clamp(controls.target.x, -5, 5);
   controls.target.y = THREE.MathUtils.clamp(controls.target.y, 0, 3);
   controls.target.z = THREE.MathUtils.clamp(controls.target.z, -8, 8);
 }
 
-// Soft indoor lighting
-const hemi = new THREE.HemisphereLight(0xf0f4ff, 0x4a4030, 0.85);
+// Soft lighting (works outdoors + indoors)
+const hemi = new THREE.HemisphereLight(0xf0f4ff, 0x4a4030, 0.9);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff5e6, 1.25);
-sun.position.set(4, 16, -2);
+const sun = new THREE.DirectionalLight(0xfff5e6, 1.3);
+sun.position.set(6, 18, -8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -14;
-sun.shadow.camera.right = 14;
-sun.shadow.camera.top = 14;
-sun.shadow.camera.bottom = -14;
+sun.shadow.camera.left = -18;
+sun.shadow.camera.right = 18;
+sun.shadow.camera.top = 18;
+sun.shadow.camera.bottom = -18;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0xc8d4ff, 0.4);
+const fill = new THREE.DirectionalLight(0xc8d4ff, 0.45);
 fill.position.set(-8, 8, 6);
 scene.add(fill);
-const rim = new THREE.DirectionalLight(0xffffff, 0.25);
+const rim = new THREE.DirectionalLight(0xffffff, 0.3);
 rim.position.set(0, 10, 10);
 scene.add(rim);
 
 const input = { left: false, right: false, forward: false, back: false };
 const mouseNdc = new THREE.Vector2(0, 0);
 const keys = new Set();
+
+let match = null;
+let shuttle = null;
+let roster = null;
+let courtRoot = null;
+let exterior = null;
+let enterFlow = null;
+let aimMarker = null;
+let gameplayReady = false;
 
 function onKey(e, down) {
   const k = e.key.toLowerCase();
@@ -103,6 +119,7 @@ function onKey(e, down) {
   input.left = keys.has('a') || keys.has('arrowleft');
   input.right = keys.has('d') || keys.has('arrowright');
 
+  if (!gameplayReady || !enterFlow?.isInside) return;
   if (down && k === ' ') match?.onHitRequest();
   if (down && k === 'r') match?.resetRally();
 }
@@ -112,13 +129,29 @@ window.addEventListener('keyup', (e) => onKey(e, false));
 window.addEventListener('mousemove', (e) => {
   mouseNdc.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouseNdc.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  match?.setAimFromMouse(mouseNdc, camera);
+  if (enterFlow) enterFlow.updatePointer(mouseNdc.x, mouseNdc.y);
+  if (gameplayReady && enterFlow?.isInside) {
+    match?.setAimFromMouse(mouseNdc, camera);
+  }
 });
 window.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
-  // Ignore HUD / court-style / reset UI clicks
-  if (e.target.closest && e.target.closest('#hud button, #court-style, .style-btn, #cam-controls')) return;
-  match?.onHitRequest();
+  if (e.target.closest && e.target.closest('#hud button, #court-style, .style-btn, #cam-controls')) {
+    return;
+  }
+  if (!enterFlow) return;
+
+  if (enterFlow.isExterior) {
+    if (enterFlow.tryEnter()) {
+      hud.setStatus('Entering hall…');
+      canvas.style.cursor = 'default';
+    }
+    return;
+  }
+
+  if (enterFlow.isInside && gameplayReady) {
+    match?.onHitRequest();
+  }
 });
 
 window.addEventListener('resize', () => {
@@ -127,38 +160,39 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-let match = null;
-let shuttle = null;
-let roster = null;
-let courtRoot = null;
-
-async function init() {
-  hud.setStatus('Loading court…');
-  const initialStyle = getSavedCourtStyle();
-  const loaded = await loadCourt(scene, initialStyle);
-  courtRoot = loaded.root;
-  normalizeCourtOrientation(courtRoot);
-  applyStyleAtmosphere(scene, loaded.style);
-
-  // Lock broadcast defaults for Reset view (full court framed).
-  camera.position.set(DEFAULT_CAMERA_POS.x, DEFAULT_CAMERA_POS.y, DEFAULT_CAMERA_POS.z);
-  controls.target.set(DEFAULT_CAMERA_TARGET.x, DEFAULT_CAMERA_TARGET.y, DEFAULT_CAMERA_TARGET.z);
-  controls.update();
-  controls.saveState();
-
-  courtRoot.traverse((obj) => {
-    const n = obj.name || '';
-    if (
-      n.startsWith('Player_') ||
-      n.includes('_Body') ||
-      n.includes('_Head') ||
-      n.includes('_Racket') ||
-      n.includes('_Handle') ||
-      n === 'Shuttle_Ref'
-    ) {
-      obj.visible = false;
+function onEnterState(state) {
+  if (state === ViewState.EXTERIOR) {
+    applyExteriorAtmosphere(scene);
+    hud.setGameplayVisible(false);
+    hud.setStatus('Hover the door · Click to enter');
+    if (hud.controlsHint) {
+      hud.controlsHint.textContent = 'Hover door to open · Click door to enter the hall';
     }
-  });
+    canvas.style.cursor = 'default';
+  } else if (state === ViewState.ENTERING) {
+    hud.setGameplayVisible(false);
+    hud.setStatus('Entering hall…');
+    canvas.style.cursor = 'default';
+  } else if (state === ViewState.INSIDE) {
+    applyStyleAtmosphere(scene, getSavedCourtStyle());
+    hud.setGameplayVisible(true);
+    sun.position.set(4, 16, -2);
+    if (!gameplayReady) {
+      beginGameplay();
+    } else {
+      hud.setStatus('Your serve — Space / Click to serve');
+    }
+    if (hud.controlsHint) {
+      hud.controlsHint.textContent =
+        'WASD move · Mouse aim · Click / Space hit · Right-drag orbit · Wheel zoom · R reset rally';
+    }
+    canvas.style.cursor = 'crosshair';
+  }
+}
+
+function beginGameplay() {
+  if (gameplayReady) return;
+  gameplayReady = true;
 
   shuttle = new Shuttle();
   scene.add(shuttle.mesh);
@@ -175,16 +209,6 @@ async function init() {
   });
   match.start();
 
-  hud.setCourtStyle(loaded.style, (nextId) => {
-    const result = setCourtStyle(scene, courtRoot, nextId);
-    courtRoot = result.root;
-    applyStyleAtmosphere(scene, result.style);
-  });
-
-  hud.setResetView(resetCameraView);
-
-  hud.setStatus('Your serve — Space / Click to serve');
-
   const aimGeo = new THREE.RingGeometry(0.25, 0.32, 24);
   const aimMat = new THREE.MeshBasicMaterial({
     color: 0xffee88,
@@ -192,10 +216,55 @@ async function init() {
     transparent: true,
     opacity: 0.7,
   });
-  const aimMarker = new THREE.Mesh(aimGeo, aimMat);
+  aimMarker = new THREE.Mesh(aimGeo, aimMat);
   aimMarker.rotation.x = -Math.PI / 2;
   aimMarker.position.y = 0.03;
   scene.add(aimMarker);
+
+  hud.setCourtStyle(getSavedCourtStyle(), (nextId) => {
+    const result = setCourtStyle(scene, courtRoot, nextId);
+    courtRoot = result.root;
+    if (enterFlow?.isInside) applyStyleAtmosphere(scene, result.style);
+  });
+  hud.setResetView(resetCameraView);
+}
+
+async function init() {
+  hud.setStatus('Loading…');
+  hud.setGameplayVisible(false);
+
+  exterior = createExteriorBuilding();
+  scene.add(exterior.group);
+
+  const initialStyle = getSavedCourtStyle();
+  const loaded = await loadCourt(scene, initialStyle);
+  courtRoot = loaded.root;
+  normalizeCourtOrientation(courtRoot);
+
+  courtRoot.traverse((obj) => {
+    const n = obj.name || '';
+    if (
+      n.startsWith('Player_') ||
+      n.includes('_Body') ||
+      n.includes('_Head') ||
+      n.includes('_Racket') ||
+      n.includes('_Handle') ||
+      n === 'Shuttle_Ref'
+    ) {
+      obj.visible = false;
+    }
+  });
+
+  enterFlow = new EnterFlow({
+    camera,
+    controls,
+    exterior,
+    interiorCamPos: INTERIOR_CAMERA_POS,
+    interiorCamTarget: INTERIOR_CAMERA_TARGET,
+    onStateChange: onEnterState,
+  });
+  enterFlow.setupExteriorCamera();
+  onEnterState(ViewState.EXTERIOR);
 
   const clock = new THREE.Clock();
   let running = true;
@@ -205,26 +274,44 @@ async function init() {
     requestAnimationFrame(frame);
     const dt = Math.min(clock.getDelta(), 0.05);
 
-    match.setAimFromMouse(mouseNdc, camera);
-    aimMarker.position.x = match.aim.x;
-    aimMarker.position.z = match.aim.z;
+    if (enterFlow.isExterior) {
+      const hovered = enterFlow.updateHover();
+      canvas.style.cursor = hovered ? 'pointer' : 'default';
+      if (hovered) {
+        hud.setStatus('Click to enter');
+      } else if (enterFlow.state === ViewState.EXTERIOR) {
+        hud.setStatus('Hover the door · Click to enter');
+      }
+    }
 
-    match.update(dt, input);
-    const ev = shuttle.update(dt);
-    if (ev !== 'none') match.onShuttleEvent(ev);
+    const ev = enterFlow.update(dt);
+    if (ev === 'entered') {
+      // onStateChange already fired
+    }
 
-    clampOrbitTarget();
-    controls.update();
+    if (gameplayReady && enterFlow.isInside && match) {
+      match.setAimFromMouse(mouseNdc, camera);
+      if (aimMarker) {
+        aimMarker.position.x = match.aim.x;
+        aimMarker.position.z = match.aim.z;
+      }
+      match.update(dt, input);
+      const sev = shuttle.update(dt);
+      if (sev !== 'none') match.onShuttleEvent(sev);
+      clampOrbitTarget();
+    }
+
+    if (controls.enabled) controls.update();
 
     renderer.render(scene, camera);
   }
 
   frame();
   console.info('[badminton-3d] ready', {
+    view: enterFlow.state,
     style: loaded.style,
     styles: Object.keys(COURT_STYLES),
-    camera: DEFAULT_CAMERA_POS,
-    target: DEFAULT_CAMERA_TARGET,
+    interiorCam: INTERIOR_CAMERA_POS,
   });
 }
 

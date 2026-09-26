@@ -8,9 +8,10 @@ export class Hud {
     this.styleBar = document.getElementById('court-style');
     this.camControls = document.getElementById('cam-controls');
     this.controlsHint = document.getElementById('controls-hint');
+    this.scoreboard = document.getElementById('scoreboard');
     if (this.controlsHint) {
       this.controlsHint.textContent =
-        'WASD move · Mouse aim · Click / Space hit · Right-drag orbit · Wheel zoom · R reset rally';
+        'Hover door to open · Click door to enter the hall';
     }
   }
 
@@ -21,6 +22,27 @@ export class Hud {
 
   setStatus(text) {
     this.status.textContent = text;
+  }
+
+  /**
+   * Dim / hide match HUD while outside the hall.
+   * Status + hint stay visible for enter prompts.
+   */
+  setGameplayVisible(visible) {
+    const mode = visible ? '' : 'hud-dim';
+    if (this.scoreboard) {
+      this.scoreboard.classList.toggle('hud-dim', !visible);
+      this.scoreboard.style.visibility = visible ? 'visible' : 'hidden';
+    }
+    if (this.styleBar) {
+      this.styleBar.classList.toggle('hud-dim', !visible);
+      this.styleBar.style.visibility = visible ? 'visible' : 'hidden';
+    }
+    if (this.camControls) {
+      this.camControls.classList.toggle('hud-dim', !visible);
+      this.camControls.style.visibility = visible ? 'visible' : 'hidden';
+    }
+    void mode;
   }
 
   /**
