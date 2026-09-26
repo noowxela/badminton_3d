@@ -14,9 +14,9 @@ import { SimpleAi } from './ai/simpleAi.js';
 import { Hud } from './ui/hud.js';
 import { Match } from './game/match.js';
 
-/** Broadcast / TV high-angle looking in through open near (-Z) end — full court in frame. */
-const DEFAULT_CAMERA_POS = Object.freeze({ x: 0, y: 10.5, z: -12.5 });
-const DEFAULT_CAMERA_TARGET = Object.freeze({ x: 0, y: 0.25, z: 0.5 });
+/** Broadcast / TV high-angle — pulled back so full green court frames clearly. */
+const DEFAULT_CAMERA_POS = Object.freeze({ x: 0, y: 12, z: -16 });
+const DEFAULT_CAMERA_TARGET = Object.freeze({ x: 0, y: 0, z: 0 });
 
 const canvas = document.getElementById('game-canvas');
 const hud = new Hud();
@@ -31,7 +31,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 applyStyleAtmosphere(scene, getSavedCourtStyle());
 
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(DEFAULT_CAMERA_POS.x, DEFAULT_CAMERA_POS.y, DEFAULT_CAMERA_POS.z);
 
 const controls = new OrbitControls(camera, canvas);
@@ -39,7 +39,7 @@ controls.target.set(DEFAULT_CAMERA_TARGET.x, DEFAULT_CAMERA_TARGET.y, DEFAULT_CA
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 6;
-controls.maxDistance = 30;
+controls.maxDistance = 36;
 controls.minPolarAngle = 0.2;
 controls.maxPolarAngle = Math.PI / 2 - 0.08;
 controls.enablePan = true;
@@ -54,6 +54,7 @@ controls.touches = {
   ONE: THREE.TOUCH.ROTATE,
   TWO: THREE.TOUCH.DOLLY_PAN,
 };
+controls.update();
 controls.saveState();
 
 function resetCameraView() {
@@ -67,9 +68,9 @@ function clampOrbitTarget() {
 }
 
 // Soft indoor lighting
-const hemi = new THREE.HemisphereLight(0xf0f4ff, 0x4a4030, 0.65);
+const hemi = new THREE.HemisphereLight(0xf0f4ff, 0x4a4030, 0.85);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff5e6, 1.15);
+const sun = new THREE.DirectionalLight(0xfff5e6, 1.25);
 sun.position.set(4, 16, -2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -139,9 +140,10 @@ async function init() {
   normalizeCourtOrientation(courtRoot);
   applyStyleAtmosphere(scene, loaded.style);
 
-  // Keep broadcast defaults inside the open hall volume and lock them for Reset view.
+  // Lock broadcast defaults for Reset view (full court framed).
   camera.position.set(DEFAULT_CAMERA_POS.x, DEFAULT_CAMERA_POS.y, DEFAULT_CAMERA_POS.z);
   controls.target.set(DEFAULT_CAMERA_TARGET.x, DEFAULT_CAMERA_TARGET.y, DEFAULT_CAMERA_TARGET.z);
+  controls.update();
   controls.saveState();
 
   courtRoot.traverse((obj) => {

@@ -13,17 +13,17 @@ export const COURT_STYLES = {
   'pro-mat': {
     id: 'pro-mat',
     label: 'Pro Mat',
-    fog: 0x6a6e74,
-    fogNear: 32,
-    fogFar: 70,
-    bg: 0x5c6066,
+    fog: 0x4a5560,
+    fogNear: 60,
+    fogFar: 120,
+    bg: 0x3a4550,
   },
   'wood-hall': {
     id: 'wood-hall',
     label: 'Wood Hall',
     fog: 0xc5d0a0,
-    fogNear: 28,
-    fogFar: 55,
+    fogNear: 50,
+    fogFar: 100,
     bg: 0xb8c96a,
   },
 };
@@ -205,78 +205,33 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   const ly = 0.028;
   const floorPad = isWood ? 3.2 : 2.8;
 
-  const lineMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.45,
-    metalness: 0.0,
-    emissive: 0x1a1a1a,
-  });
-  const tapeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
-  const cordMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7 });
+  // MeshBasicMaterial so court/lines read vividly without depending on lights.
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const tapeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const cordMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
 
   let surroundMat;
   let surfaceMat;
-  let wallMat;
   let postMat;
   let baseMat;
-  let ceilingMat;
-  let fixtureMat;
 
   if (isWood) {
     const woodTex = makeWoodTexture();
-    surroundMat = new THREE.MeshStandardMaterial({
-      map: woodTex,
-      roughness: 0.38,
-      metalness: 0.02,
-    });
+    surroundMat = new THREE.MeshBasicMaterial({ map: woodTex });
     const courtTex = woodTex.clone();
     courtTex.repeat.set(1.5, 3.2);
     courtTex.needsUpdate = true;
-    surfaceMat = new THREE.MeshStandardMaterial({
-      map: courtTex,
-      roughness: 0.4,
-      metalness: 0.02,
-    });
-    wallMat = new THREE.MeshStandardMaterial({ color: 0xb8c96a, roughness: 0.92 });
-    postMat = new THREE.MeshStandardMaterial({
-      color: 0xf2f4f8,
-      roughness: 0.35,
-      metalness: 0.15,
-    });
-    baseMat = new THREE.MeshStandardMaterial({
-      color: 0x1e4f9c,
-      roughness: 0.45,
-      metalness: 0.1,
-    });
-    ceilingMat = new THREE.MeshStandardMaterial({ color: 0xe8ecd8, roughness: 1 });
-    fixtureMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 });
+    surfaceMat = new THREE.MeshBasicMaterial({ map: courtTex });
+    postMat = new THREE.MeshBasicMaterial({ color: 0xf2f4f8 });
+    baseMat = new THREE.MeshBasicMaterial({ color: 0x1e4f9c });
   } else {
-    // pro-mat: vibrant green court, navy surround, grey hall, dark posts
+    // pro-mat: vivid green court, navy surround — Basic so they never go black/gray
     const greenTex = makeMatTexture('#2f8f3a', 22);
     const navyTex = makeMatTexture('#152a4a', 12);
-    surfaceMat = new THREE.MeshStandardMaterial({
-      map: greenTex,
-      roughness: 0.72,
-      metalness: 0.0,
-    });
-    surroundMat = new THREE.MeshStandardMaterial({
-      map: navyTex,
-      roughness: 0.78,
-      metalness: 0.0,
-    });
-    wallMat = new THREE.MeshStandardMaterial({ color: 0x8a8e94, roughness: 0.95 });
-    postMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
-      roughness: 0.5,
-      metalness: 0.2,
-    });
-    baseMat = new THREE.MeshStandardMaterial({
-      color: 0x2a1810,
-      roughness: 0.65,
-      metalness: 0.05,
-    });
-    ceilingMat = new THREE.MeshStandardMaterial({ color: 0x3a3e44, roughness: 1 });
-    fixtureMat = new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.55 });
+    surfaceMat = new THREE.MeshBasicMaterial({ map: greenTex, color: 0x2f8f3a });
+    surroundMat = new THREE.MeshBasicMaterial({ map: navyTex, color: 0x152a4a });
+    postMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+    baseMat = new THREE.MeshBasicMaterial({ color: 0x2a1810 });
   }
 
   // Surround / outer floor — X=width, Z=length
@@ -326,11 +281,7 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
 
   // Posts + bases
   const postGeo = new THREE.CylinderGeometry(0.035, 0.035, NET_POST_HEIGHT, 16);
-  const wheelMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1a1a,
-    roughness: 0.6,
-    metalness: 0.2,
-  });
+  const wheelMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
   for (const x of [hw, -hw]) {
     const postGroup = new THREE.Group();
     postGroup.position.set(x, 0, 0);
@@ -373,14 +324,12 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
 
   // White mesh net + top tape + bottom cord
   const netTex = makeNetTexture();
-  const netMat = new THREE.MeshStandardMaterial({
+  const netMat = new THREE.MeshBasicMaterial({
     map: netTex,
     color: 0xffffff,
     transparent: true,
     opacity: 0.9,
     side: THREE.DoubleSide,
-    roughness: 0.7,
-    metalness: 0,
     depthWrite: false,
   });
   const netH = NET_CENTER_HEIGHT - 0.08;
@@ -397,72 +346,21 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   cord.position.set(0, 0.09, 0);
   root.add(cord);
 
-  // Hall walls — open near (-Z) end so broadcast/orbit camera can see the court.
-  // No solid ceiling slab (high cameras would hit exterior); open roof beams only.
-  const wallH = isWood ? 7.5 : 8.5;
-  const roomW = COURT_WIDTH + floorPad * 2 + 0.2;
-  const roomL = COURT_LENGTH + floorPad * 2 + 0.2;
-  const wallT = 0.2;
-
-  const backWall = new THREE.Mesh(new THREE.BoxGeometry(roomW, wallH, wallT), wallMat);
-  backWall.position.set(0, wallH / 2, roomL / 2);
-  backWall.receiveShadow = true;
-  root.add(backWall);
-  // Intentionally omit near-end wall at z = -roomL/2 (frontWall).
-  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomL), wallMat);
-  leftWall.position.set(-roomW / 2, wallH / 2, 0);
-  leftWall.receiveShadow = true;
-  root.add(leftWall);
-  const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomL), wallMat);
-  rightWall.position.set(roomW / 2, wallH / 2, 0);
-  rightWall.receiveShadow = true;
-  root.add(rightWall);
-
-  if (!isWood) {
-    // Upper corrugated band on far wall only
-    const upperMat = new THREE.MeshStandardMaterial({ color: 0x6e7278, roughness: 0.7, metalness: 0.25 });
-    const band = new THREE.Mesh(new THREE.BoxGeometry(roomW, 1.8, wallT * 0.9), upperMat);
-    band.position.set(0, wallH - 0.9, roomL / 2 - 0.02);
-    root.add(band);
-    // Pillars on side walls
-    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x757980, roughness: 0.85 });
-    for (const x of [-roomW / 2, roomW / 2]) {
-      for (const z of [-5, 0, 5]) {
-        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.35, wallH, 0.35), pillarMat);
-        pillar.position.set(x > 0 ? x - 0.15 : x + 0.15, wallH / 2, z);
-        root.add(pillar);
-      }
-    }
-  }
-
-  // Open roof beams high enough that broadcast cameras (y ~11) are not occluded
-  const beamY = 14.5;
-  const beamMat = ceilingMat;
-  for (const z of [-6, -2, 2, 6]) {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(roomW - 0.4, 0.18, 0.28), beamMat);
-    beam.position.set(0, beamY, z);
-    root.add(beam);
-  }
-  for (const x of [-roomW / 4, roomW / 4]) {
-    const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, roomL - 0.6), beamMat);
-    ridge.position.set(x, beamY + 0.12, 0);
-    root.add(ridge);
-  }
-
-  for (const z of [-4, 0, 4]) {
-    const fix = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.25), fixtureMat);
-    fix.position.set(-roomW / 2 + 0.2, isWood ? 5.2 : 5.8, z);
-    root.add(fix);
-    const fix2 = fix.clone();
-    fix2.position.x = roomW / 2 - 0.2;
-    root.add(fix2);
-  }
+  // Far backdrop only — cannot occlude court from default camera at -Z.
+  // No side walls, pillars, corrugated bands, ceiling, or roof beams.
+  const backdropMat = new THREE.MeshBasicMaterial({
+    color: isWood ? 0xa8b85a : 0x2a3540,
+    side: THREE.DoubleSide,
+  });
+  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), backdropMat);
+  backdrop.position.set(0, 8, 28);
+  root.add(backdrop);
 
   return root;
 }
 
 export function normalizeCourtOrientation(root) {
-  // Procedural courts already use X=width / Z=length; never spin the open-ended hall.
+  // Procedural courts already use X=width / Z=length; no hall to reorient.
   if (root?.userData?.courtStyle) return;
   const box = new THREE.Box3().setFromObject(root);
   const size = new THREE.Vector3();
