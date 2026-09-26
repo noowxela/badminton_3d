@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Badminton Doubles Simulator v1</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas"></canvas>
+      <div id="hud">
+        <div id="scoreboard">
+          <div class="team" id="team-a">
+            <span class="label">You</span>
+            <span class="score" id="score-a">0</span>
+          </div>
+          <div class="divider">–</div>
+          <div class="team" id="team-b">
+            <span class="label">AI</span>
+            <span class="score" id="score-b">0</span>
+          </div>
+        </div>
+        <div id="status">Press Space to serve</div>
+        <div id="controls-hint">
+          WASD move · Mouse aim · Click / Space hit · R reset rally
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
