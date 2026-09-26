@@ -14,9 +14,9 @@ import { SimpleAi } from './ai/simpleAi.js';
 import { Hud } from './ui/hud.js';
 import { Match } from './game/match.js';
 
-/** Broadcast / TV high-angle behind near (-Z) baseline — full court in frame. */
-const DEFAULT_CAMERA_POS = Object.freeze({ x: 0, y: 11.5, z: -13.5 });
-const DEFAULT_CAMERA_TARGET = Object.freeze({ x: 0, y: 0.25, z: 0 });
+/** Broadcast / TV high-angle looking in through open near (-Z) end — full court in frame. */
+const DEFAULT_CAMERA_POS = Object.freeze({ x: 0, y: 10.5, z: -12.5 });
+const DEFAULT_CAMERA_TARGET = Object.freeze({ x: 0, y: 0.25, z: 0.5 });
 
 const canvas = document.getElementById('game-canvas');
 const hud = new Hud();
@@ -138,6 +138,11 @@ async function init() {
   courtRoot = loaded.root;
   normalizeCourtOrientation(courtRoot);
   applyStyleAtmosphere(scene, loaded.style);
+
+  // Keep broadcast defaults inside the open hall volume and lock them for Reset view.
+  camera.position.set(DEFAULT_CAMERA_POS.x, DEFAULT_CAMERA_POS.y, DEFAULT_CAMERA_POS.z);
+  controls.target.set(DEFAULT_CAMERA_TARGET.x, DEFAULT_CAMERA_TARGET.y, DEFAULT_CAMERA_TARGET.z);
+  controls.saveState();
 
   courtRoot.traverse((obj) => {
     const n = obj.name || '';

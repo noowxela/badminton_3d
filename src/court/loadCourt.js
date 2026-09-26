@@ -397,7 +397,8 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   cord.position.set(0, 0.09, 0);
   root.add(cord);
 
-  // Hall walls
+  // Hall walls — open near (-Z) end so broadcast/orbit camera can see the court.
+  // No solid ceiling slab (high cameras would hit exterior); open roof beams only.
   const wallH = isWood ? 7.5 : 8.5;
   const roomW = COURT_WIDTH + floorPad * 2 + 0.2;
   const roomL = COURT_LENGTH + floorPad * 2 + 0.2;
@@ -407,10 +408,7 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   backWall.position.set(0, wallH / 2, roomL / 2);
   backWall.receiveShadow = true;
   root.add(backWall);
-  const frontWall = new THREE.Mesh(new THREE.BoxGeometry(roomW, wallH, wallT), wallMat);
-  frontWall.position.set(0, wallH / 2, -roomL / 2);
-  frontWall.receiveShadow = true;
-  root.add(frontWall);
+  // Intentionally omit near-end wall at z = -roomL/2 (frontWall).
   const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomL), wallMat);
   leftWall.position.set(-roomW / 2, wallH / 2, 0);
   leftWall.receiveShadow = true;
@@ -421,13 +419,11 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   root.add(rightWall);
 
   if (!isWood) {
-    // Upper corrugated band
+    // Upper corrugated band on far wall only
     const upperMat = new THREE.MeshStandardMaterial({ color: 0x6e7278, roughness: 0.7, metalness: 0.25 });
-    for (const z of [roomL / 2, -roomL / 2]) {
-      const band = new THREE.Mesh(new THREE.BoxGeometry(roomW, 1.8, wallT * 0.9), upperMat);
-      band.position.set(0, wallH - 0.9, z > 0 ? z - 0.02 : z + 0.02);
-      root.add(band);
-    }
+    const band = new THREE.Mesh(new THREE.BoxGeometry(roomW, 1.8, wallT * 0.9), upperMat);
+    band.position.set(0, wallH - 0.9, roomL / 2 - 0.02);
+    root.add(band);
     // Pillars on side walls
     const pillarMat = new THREE.MeshStandardMaterial({ color: 0x757980, roughness: 0.85 });
     for (const x of [-roomW / 2, roomW / 2]) {
@@ -439,9 +435,19 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
     }
   }
 
-  const ceiling = new THREE.Mesh(new THREE.BoxGeometry(roomW, 0.15, roomL), ceilingMat);
-  ceiling.position.y = wallH;
-  root.add(ceiling);
+  // Open roof beams high enough that broadcast cameras (y ~11) are not occluded
+  const beamY = 14.5;
+  const beamMat = ceilingMat;
+  for (const z of [-6, -2, 2, 6]) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(roomW - 0.4, 0.18, 0.28), beamMat);
+    beam.position.set(0, beamY, z);
+    root.add(beam);
+  }
+  for (const x of [-roomW / 4, roomW / 4]) {
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, roomL - 0.6), beamMat);
+    ridge.position.set(x, beamY + 0.12, 0);
+    root.add(ridge);
+  }
 
   for (const z of [-4, 0, 4]) {
     const fix = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.25), fixtureMat);
@@ -456,6 +462,8 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
 }
 
 export function normalizeCourtOrientation(root) {
+  // Procedural courts already use X=width / Z=length; never spin the open-ended hall.
+  if (root?.userData?.courtStyle) return;
   const box = new THREE.Box3().setFromObject(root);
   const size = new THREE.Vector3();
   box.getSize(size);
