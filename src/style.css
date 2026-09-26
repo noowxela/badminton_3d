@@ -121,9 +121,38 @@ body,
   font-weight: 600;
 }
 
+.cam-controls {
+  margin-top: 0.55rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: auto;
+}
+
+.cam-controls .cam-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 16, 32, 0.65);
+  color: #e8eef8;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  opacity: 0.9;
+}
+
+.cam-controls .cam-btn:hover {
+  background: rgba(90, 160, 255, 0.28);
+  opacity: 1;
+}
+
 #controls-hint {
   margin-top: auto;
   margin-bottom: 0.5rem;
   font-size: 0.8rem;
   opacity: 0.65;
+  text-align: center;
+  max-width: 92vw;
 }

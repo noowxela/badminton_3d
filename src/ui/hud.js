@@ -6,6 +6,12 @@ export class Hud {
     this.scoreB = document.getElementById('score-b');
     this.status = document.getElementById('status');
     this.styleBar = document.getElementById('court-style');
+    this.camControls = document.getElementById('cam-controls');
+    this.controlsHint = document.getElementById('controls-hint');
+    if (this.controlsHint) {
+      this.controlsHint.textContent =
+        'WASD move · Mouse aim · Click / Space hit · Right-drag orbit · Wheel zoom · R reset rally';
+    }
   }
 
   setScore(a, b) {
@@ -45,5 +51,23 @@ export class Hud {
       });
       this.styleBar.appendChild(btn);
     }
+  }
+
+  /** Wire Reset view button that restores the default broadcast camera. */
+  setResetView(onReset) {
+    if (!this.camControls) return;
+    this.camControls.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cam-btn';
+    btn.id = 'reset-view';
+    btn.textContent = 'Reset view';
+    btn.title = 'Restore broadcast camera';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      onReset();
+    });
+    this.camControls.appendChild(btn);
   }
 }

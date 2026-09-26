@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   loadCourt,
   normalizeCourtOrientation,
@@ -12,6 +13,10 @@ import { createDoublesRoster } from './players/player.js';
 import { SimpleAi } from './ai/simpleAi.js';
 import { Hud } from './ui/hud.js';
 import { Match } from './game/match.js';
+
+/** Broadcast / TV high-angle behind near (-Z) baseline — full court in frame. */
+const DEFAULT_CAMERA_POS = Object.freeze({ x: 0, y: 11.5, z: -13.5 });
+const DEFAULT_CAMERA_TARGET = Object.freeze({ x: 0, y: 0.25, z: 0 });
 
 const canvas = document.getElementById('game-canvas');
 const hud = new Hud();
@@ -27,8 +32,39 @@ const scene = new THREE.Scene();
 applyStyleAtmosphere(scene, getSavedCourtStyle());
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 9.5, -14.5);
-camera.lookAt(0, 0.5, 0);
+camera.position.set(DEFAULT_CAMERA_POS.x, DEFAULT_CAMERA_POS.y, DEFAULT_CAMERA_POS.z);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(DEFAULT_CAMERA_TARGET.x, DEFAULT_CAMERA_TARGET.y, DEFAULT_CAMERA_TARGET.z);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 6;
+controls.maxDistance = 30;
+controls.minPolarAngle = 0.2;
+controls.maxPolarAngle = Math.PI / 2 - 0.08;
+controls.enablePan = true;
+controls.screenSpacePanning = false;
+// Left-click stays hit/serve; right-drag orbits; middle pans; wheel zooms.
+controls.mouseButtons = {
+  LEFT: null,
+  MIDDLE: THREE.MOUSE.PAN,
+  RIGHT: THREE.MOUSE.ROTATE,
+};
+controls.touches = {
+  ONE: THREE.TOUCH.ROTATE,
+  TWO: THREE.TOUCH.DOLLY_PAN,
+};
+controls.saveState();
+
+function resetCameraView() {
+  controls.reset();
+}
+
+function clampOrbitTarget() {
+  controls.target.x = THREE.MathUtils.clamp(controls.target.x, -5, 5);
+  controls.target.y = THREE.MathUtils.clamp(controls.target.y, 0, 3);
+  controls.target.z = THREE.MathUtils.clamp(controls.target.z, -8, 8);
+}
 
 // Soft indoor lighting
 const hemi = new THREE.HemisphereLight(0xf0f4ff, 0x4a4030, 0.65);
@@ -79,8 +115,8 @@ window.addEventListener('mousemove', (e) => {
 });
 window.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
-  // Ignore HUD / court-style UI clicks
-  if (e.target.closest && e.target.closest('#hud button, #court-style, .style-btn')) return;
+  // Ignore HUD / court-style / reset UI clicks
+  if (e.target.closest && e.target.closest('#hud button, #court-style, .style-btn, #cam-controls')) return;
   match?.onHitRequest();
 });
 
@@ -138,6 +174,8 @@ async function init() {
     applyStyleAtmosphere(scene, result.style);
   });
 
+  hud.setResetView(resetCameraView);
+
   hud.setStatus('Your serve — Space / Click to serve');
 
   const aimGeo = new THREE.RingGeometry(0.25, 0.32, 24);
@@ -168,14 +206,19 @@ async function init() {
     const ev = shuttle.update(dt);
     if (ev !== 'none') match.onShuttleEvent(ev);
 
-    const targetCamX = roster.human.position.x * 0.25;
-    camera.position.x = THREE.MathUtils.damp(camera.position.x, targetCamX, 2, dt);
+    clampOrbitTarget();
+    controls.update();
 
     renderer.render(scene, camera);
   }
 
   frame();
-  console.info('[badminton-3d] ready', { style: loaded.style, styles: Object.keys(COURT_STYLES) });
+  console.info('[badminton-3d] ready', {
+    style: loaded.style,
+    styles: Object.keys(COURT_STYLES),
+    camera: DEFAULT_CAMERA_POS,
+    target: DEFAULT_CAMERA_TARGET,
+  });
 }
 
 init().catch((err) => {

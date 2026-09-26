@@ -38,6 +38,10 @@ npm run preview
 | **W A S D** / arrows | Move (human, own half) |
 | **Mouse** | Aim landing target (opponent half) |
 | **Click** / **Space** | Serve or hit |
+| **Right-drag** | Orbit camera |
+| **Middle-drag** | Pan camera |
+| **Wheel** | Zoom |
+| **Reset view** (HUD) | Restore default broadcast camera |
 | **R** | Reset rally / re-serve |
 
 Scoring: rally point. First to 21 with a 2-point lead; continues until lead of 2 or **30** cap.
@@ -111,7 +115,7 @@ npm run build
 - Partner AI on your team is simple; you control only one player
 - Net collision is a thin plane test, not full mesh contact
 - Serve rules (service courts, faults) are simplified
-- Camera is a fixed elevated view with light follow, not free orbit
+- Camera defaults to a broadcast elevated view; orbit via right-drag (clamped so the court stays framed)
 
 ## License
 
