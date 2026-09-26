@@ -1,5 +1,12 @@
 import * as THREE from 'three';
-import { loadCourt, normalizeCourtOrientation } from './court/loadCourt.js';
+import {
+  loadCourt,
+  normalizeCourtOrientation,
+  setCourtStyle,
+  applyStyleAtmosphere,
+  getSavedCourtStyle,
+  COURT_STYLES,
+} from './court/loadCourt.js';
 import { Shuttle } from './physics/shuttle.js';
 import { createDoublesRoster } from './players/player.js';
 import { SimpleAi } from './ai/simpleAi.js';
@@ -17,31 +24,31 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87a0c0);
-scene.fog = new THREE.Fog(0x87a0c0, 28, 55);
+applyStyleAtmosphere(scene, getSavedCourtStyle());
 
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-// Human side view: look from -Z toward net
 camera.position.set(0, 9.5, -14.5);
 camera.lookAt(0, 0.5, 0);
 
-// Lights
-const hemi = new THREE.HemisphereLight(0xddeeff, 0x3a4a2a, 0.7);
+// Soft indoor lighting
+const hemi = new THREE.HemisphereLight(0xf0f4ff, 0x4a4030, 0.65);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff5e6, 1.35);
-sun.position.set(6, 14, -4);
+const sun = new THREE.DirectionalLight(0xfff5e6, 1.15);
+sun.position.set(4, 16, -2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -12;
-sun.shadow.camera.right = 12;
-sun.shadow.camera.top = 12;
-sun.shadow.camera.bottom = -12;
+sun.shadow.camera.left = -14;
+sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14;
+sun.shadow.camera.bottom = -14;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0xb0c4ff, 0.35);
-fill.position.set(-8, 6, 6);
+const fill = new THREE.DirectionalLight(0xc8d4ff, 0.4);
+fill.position.set(-8, 8, 6);
 scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffffff, 0.25);
+rim.position.set(0, 10, 10);
+scene.add(rim);
 
-// Input
 const input = { left: false, right: false, forward: false, back: false };
 const mouseNdc = new THREE.Vector2(0, 0);
 const keys = new Set();
@@ -71,7 +78,10 @@ window.addEventListener('mousemove', (e) => {
   match?.setAimFromMouse(mouseNdc, camera);
 });
 window.addEventListener('mousedown', (e) => {
-  if (e.button === 0) match?.onHitRequest();
+  if (e.button !== 0) return;
+  // Ignore HUD / court-style UI clicks
+  if (e.target.closest && e.target.closest('#hud button, #court-style, .style-btn')) return;
+  match?.onHitRequest();
 });
 
 window.addEventListener('resize', () => {
@@ -83,14 +93,17 @@ window.addEventListener('resize', () => {
 let match = null;
 let shuttle = null;
 let roster = null;
+let courtRoot = null;
 
 async function init() {
   hud.setStatus('Loading court…');
-  const { root, fromGlb } = await loadCourt(scene);
-  normalizeCourtOrientation(root);
+  const initialStyle = getSavedCourtStyle();
+  const loaded = await loadCourt(scene, initialStyle);
+  courtRoot = loaded.root;
+  normalizeCourtOrientation(courtRoot);
+  applyStyleAtmosphere(scene, loaded.style);
 
-  // Hide baked Blender player stubs if present — we use gameplay players
-  root.traverse((obj) => {
+  courtRoot.traverse((obj) => {
     const n = obj.name || '';
     if (
       n.startsWith('Player_') ||
@@ -119,13 +132,14 @@ async function init() {
   });
   match.start();
 
-  hud.setStatus(
-    fromGlb
-      ? 'Court loaded — Space to serve'
-      : 'Procedural court (no GLB) — Space to serve',
-  );
+  hud.setCourtStyle(loaded.style, (nextId) => {
+    const result = setCourtStyle(scene, courtRoot, nextId);
+    courtRoot = result.root;
+    applyStyleAtmosphere(scene, result.style);
+  });
 
-  // Aim marker
+  hud.setStatus('Your serve — Space / Click to serve');
+
   const aimGeo = new THREE.RingGeometry(0.25, 0.32, 24);
   const aimMat = new THREE.MeshBasicMaterial({
     color: 0xffee88,
@@ -154,7 +168,6 @@ async function init() {
     const ev = shuttle.update(dt);
     if (ev !== 'none') match.onShuttleEvent(ev);
 
-    // Soft camera follow human a bit
     const targetCamX = roster.human.position.x * 0.25;
     camera.position.x = THREE.MathUtils.damp(camera.position.x, targetCamX, 2, dt);
 
@@ -162,7 +175,7 @@ async function init() {
   }
 
   frame();
-  console.info('[badminton-3d] ready');
+  console.info('[badminton-3d] ready', { style: loaded.style, styles: Object.keys(COURT_STYLES) });
 }
 
 init().catch((err) => {

@@ -24,7 +24,6 @@ export class SimpleAi {
       return;
     }
 
-    // Group by team
     const byTeam = {
       [TEAM.A]: ais.filter((p) => p.team === TEAM.A),
       [TEAM.B]: ais.filter((p) => p.team === TEAM.B),
@@ -38,10 +37,10 @@ export class SimpleAi {
       const comingToUs =
         shuttle.inPlay &&
         shuttle.lastHitBy !== team &&
-        (team === TEAM.A ? landing.z < 0.5 : landing.z > -0.5);
+        landing &&
+        (team === TEAM.A ? landing.z < 0.8 : landing.z > -0.8);
 
       if (comingToUs && landing) {
-        // Assign closest to cover landing
         let best = mates[0];
         let bestD = Infinity;
         for (const p of mates) {
@@ -53,39 +52,37 @@ export class SimpleAi {
         }
         const cover = landing.clone();
         cover.y = 0;
-        // Stay slightly behind contact
-        cover.z += team === TEAM.A ? -0.35 : 0.35;
-        best.moveToward(cover, dt);
+        cover.z += team === TEAM.A ? -0.4 : 0.4;
+        best.moveToward(cover, dt, best.speed * 1.15);
 
         for (const p of mates) {
           if (p === best) continue;
-          // Partner: balanced home / mid-court
           const support = p.home.clone();
-          support.x = THREE.MathUtils.clamp(-best.position.x * 0.4 + p.home.x * 0.6, -HALF_WIDTH + 0.5, HALF_WIDTH - 0.5);
+          support.x = THREE.MathUtils.clamp(
+            -best.position.x * 0.4 + p.home.x * 0.6,
+            -HALF_WIDTH + 0.5,
+            HALF_WIDTH - 0.5,
+          );
           p.moveToward(support, dt, p.speed * 0.85);
         }
 
-        // Try hit
         if (best.canHit(shuttle)) {
-          const target = this.pickTarget(team);
-          best.tryHit(shuttle, target);
+          best.tryHit(shuttle, this.pickTarget(team));
         }
       } else {
-        // Idle / return home gently; if shuttle on our side but not predicted well, chase shuttle
         for (const p of mates) {
           if (
             shuttle.inPlay &&
             shuttle.lastHitBy !== team &&
-            ((team === TEAM.A && shuttle.position.z < 0) ||
-              (team === TEAM.B && shuttle.position.z > 0))
+            ((team === TEAM.A && shuttle.position.z < 0.2) ||
+              (team === TEAM.B && shuttle.position.z > -0.2))
           ) {
             const chase = shuttle.position.clone();
             chase.y = 0;
-            // Only closest chases
             const closest = mates.reduce((a, b) =>
               a.position.distanceTo(chase) < b.position.distanceTo(chase) ? a : b,
             );
-            if (p === closest) p.moveToward(chase, dt);
+            if (p === closest) p.moveToward(chase, dt, p.speed * 1.1);
             else p.moveToward(p.home, dt, p.speed * 0.6);
             if (p.canHit(shuttle)) p.tryHit(shuttle, this.pickTarget(team));
           } else {
@@ -97,12 +94,11 @@ export class SimpleAi {
   }
 
   pickTarget(team) {
-    // Aim deep / cross-court with jitter
-    const x = (Math.random() - 0.5) * HALF_WIDTH * 1.6;
+    const x = (Math.random() - 0.5) * HALF_WIDTH * 1.5;
     const z =
       team === TEAM.A
-        ? HALF_LENGTH * (0.45 + Math.random() * 0.4)
-        : -HALF_LENGTH * (0.45 + Math.random() * 0.4);
+        ? HALF_LENGTH * (0.4 + Math.random() * 0.4)
+        : -HALF_LENGTH * (0.4 + Math.random() * 0.4);
     return new THREE.Vector3(x, 0.05, z);
   }
 }

@@ -40,7 +40,6 @@ export class Match {
     this.shuttle.inPlay = false;
     this.shuttle.lastHitBy = null;
 
-    // Place server near shuttle
     const server =
       team === TEAM.A
         ? this.human
@@ -51,29 +50,50 @@ export class Match {
       server.clampToHalf();
     }
 
+    // Reset non-servers toward home
+    for (const p of this.players) {
+      if (p === server) continue;
+      p.position.copy(p.home);
+      p.clampToHalf();
+    }
+
     const who = team === TEAM.A ? 'Your serve — Space / Click to serve' : 'AI serving…';
     this.hud.setStatus(who);
     this.hud.setScore(this.score.a, this.score.b);
 
     if (team === TEAM.B) {
-      // Auto-serve after short delay
       this.messageTimer = 0.7;
       this._aiServePending = true;
     } else {
       this._aiServePending = false;
+      this._attachShuttleToServer();
     }
   }
 
+  /** Keep shuttle perched near human racket while waiting to serve. */
+  _attachShuttleToServer() {
+    if (this.state !== 'serving' || this.score.serverTeam !== TEAM.A) return;
+    const hp = this.human.position;
+    this.shuttle.position.set(hp.x + 0.32, 1.12, hp.z + 0.42);
+    this.shuttle.velocity.set(0, 0, 0);
+    this.shuttle.inPlay = false;
+    this.shuttle.syncMesh();
+  }
+
   doServe(team) {
+    // Serve from current shuttle pose (near server)
     const from = this.shuttle.position.clone();
+    from.y = Math.max(from.y, 1.05);
+
     const target = new THREE.Vector3(
-      (Math.random() - 0.5) * 2.5,
+      (Math.random() - 0.5) * 2.2,
       0.05,
-      team === TEAM.A ? 3.5 + Math.random() * 2 : -(3.5 + Math.random() * 2),
+      team === TEAM.A ? 3.8 + Math.random() * 1.8 : -(3.8 + Math.random() * 1.8),
     );
-    const vel = computeHitVelocity(from, target, 2.2, 0.9);
-    // Serve should clear net — ensure enough upward
-    vel.y = Math.max(vel.y, 3.5);
+    const dist = from.distanceTo(target);
+    const flightTime = THREE.MathUtils.clamp(dist / 9.5, 0.9, 1.15);
+    const vel = computeHitVelocity(from, target, 4.0, flightTime);
+    vel.y = Math.max(vel.y, 4.2);
     this.shuttle.serve(from, vel, team);
     this.state = 'playing';
     this.hud.setStatus('Rally!');
@@ -84,9 +104,8 @@ export class Match {
     this.raycaster.setFromCamera(mouseNdc, camera);
     const hit = new THREE.Vector3();
     if (this.raycaster.ray.intersectPlane(this.groundPlane, hit)) {
-      // Clamp aim to opponent half
-      hit.x = THREE.MathUtils.clamp(hit.x, -HALF_WIDTH, HALF_WIDTH);
-      hit.z = THREE.MathUtils.clamp(hit.z, 0.5, HALF_LENGTH);
+      hit.x = THREE.MathUtils.clamp(hit.x, -HALF_WIDTH + 0.2, HALF_WIDTH - 0.2);
+      hit.z = THREE.MathUtils.clamp(hit.z, 0.6, HALF_LENGTH - 0.3);
       hit.y = 0.05;
       this.aim.copy(hit);
       this.human.aimPoint.copy(hit);
@@ -125,12 +144,13 @@ export class Match {
     if (event === 'none') return;
 
     let pointTo = null;
-    // lastHitBy failed if net / out; floor on opponent side = point to hitter
     if (event === 'net' || event === 'out') {
+      // Fault by the team that last hit
       pointTo = this.shuttle.lastHitBy === TEAM.A ? TEAM.B : TEAM.A;
     } else if (event === 'floor') {
-      // Landed in bounds: point to the team that hit it (opponent failed to return)
-      pointTo = this.shuttle.lastHitBy;
+      // In-bounds floor: point to the team on the *other* half
+      // land z>0 (B half) → A scores; land z<0 (A half) → B scores
+      pointTo = this.shuttle.position.z > 0 ? TEAM.A : TEAM.B;
     }
 
     if (!pointTo) return;
@@ -170,8 +190,11 @@ export class Match {
       this.human.moveHuman(input, dt);
     }
 
-    this.ai.update(dt, this.shuttle, this.state);
+    // Shuttle stays near human while waiting to serve
+    if (this.state === 'serving' && this.score.serverTeam === TEAM.A) {
+      this._attachShuttleToServer();
+    }
 
-    // Human auto-assist: if very close and clicking held — handled via input
+    this.ai.update(dt, this.shuttle, this.state);
   }
 }

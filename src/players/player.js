@@ -2,29 +2,20 @@ import * as THREE from 'three';
 import { HALF_LENGTH, HALF_WIDTH, TEAM } from '../court/constants.js';
 import { computeHitVelocity } from '../physics/shuttle.js';
 
-const REACH = 1.15;
-const HIT_COOLDOWN = 0.35;
+const REACH = 1.55;
+const HIT_COOLDOWN = 0.28;
 
 /**
- * Low-poly player (procedural stub). If GLB has named empties we still use these
- * for gameplay so AI/human stay consistent.
+ * Low-poly player (procedural stub).
  */
 export class Player {
-  /**
-   * @param {object} opts
-   * @param {string} opts.id
-   * @param {'A'|'B'} opts.team
-   * @param {THREE.Vector3} opts.home
-   * @param {boolean} opts.isHuman
-   * @param {number} [opts.color]
-   */
   constructor({ id, team, home, isHuman = false, color = 0x3a7bd5 }) {
     this.id = id;
     this.team = team;
     this.home = home.clone();
     this.isHuman = isHuman;
-    this.speed = isHuman ? 5.2 : 4.2;
-    this.reach = REACH;
+    this.speed = isHuman ? 5.8 : 5.0;
+    this.reach = isHuman ? REACH + 0.15 : REACH;
     this.cooldown = 0;
     this.aimPoint = new THREE.Vector3(0, 0, team === TEAM.A ? 4 : -4);
 
@@ -74,7 +65,6 @@ export class Player {
     );
   }
 
-  /** Clamp to own half-court with side margin. */
   clampToHalf() {
     const p = this.position;
     p.x = THREE.MathUtils.clamp(p.x, -HALF_WIDTH + 0.3, HALF_WIDTH - 0.3);
@@ -97,11 +87,10 @@ export class Player {
     p.x += (dx / dist) * step;
     p.z += (dz / dist) * step;
     this.clampToHalf();
-    // Face toward net / movement
     this.group.rotation.y = Math.atan2(dx, dz);
   }
 
-  /** Human WASD relative to camera-forward (along +Z looking from -Z). */
+  /** WASD relative to camera looking from -Z toward +Z (net / opponent). */
   moveHuman(input, dt) {
     if (!this.isHuman) return;
     const p = this.position;
@@ -109,7 +98,7 @@ export class Player {
     let dz = 0;
     if (input.left) dx -= 1;
     if (input.right) dx += 1;
-    if (input.forward) dz += 1; // toward net / opponent
+    if (input.forward) dz += 1; // toward net
     if (input.back) dz -= 1;
     if (dx === 0 && dz === 0) return;
     const len = Math.hypot(dx, dz);
@@ -129,16 +118,11 @@ export class Player {
     if (this.cooldown > 0 || !shuttle.inPlay) return false;
     const hit = this.getHitPoint();
     const d = hit.distanceTo(shuttle.position);
-    // Prefer hitting when shuttle is on our side
     const onSide =
-      this.team === TEAM.A ? shuttle.position.z < 0.35 : shuttle.position.z > -0.35;
-    return onSide && d < this.reach && shuttle.position.y < 2.4 && shuttle.position.y > 0.3;
+      this.team === TEAM.A ? shuttle.position.z < 0.45 : shuttle.position.z > -0.45;
+    return onSide && d < this.reach && shuttle.position.y < 2.6 && shuttle.position.y > 0.25;
   }
 
-  /**
-   * Perform a hit toward aimPoint (or random court target).
-   * @returns {boolean}
-   */
   tryHit(shuttle, aimWorld = null) {
     if (!this.canHit(shuttle)) return false;
     const from = shuttle.position.clone();
@@ -151,24 +135,24 @@ export class Player {
         this.team === TEAM.A ? 3 + Math.random() * 3 : -(3 + Math.random() * 3),
       );
     target.y = 0.05;
+    // Keep aim on opponent half
+    if (this.team === TEAM.A) target.z = Math.max(0.8, target.z);
+    else target.z = Math.min(-0.8, target.z);
 
     const dist = from.distanceTo(target);
-    const flightTime = THREE.MathUtils.clamp(dist / 9, 0.55, 1.15);
-    const loft = 2.8 + Math.random() * 1.2;
+    const flightTime = THREE.MathUtils.clamp(dist / 9, 0.7, 1.15);
+    const loft = 3.2 + Math.random() * 1.0;
     const vel = computeHitVelocity(from, target, loft, flightTime);
-    // Slight randomness
-    vel.x += (Math.random() - 0.5) * 0.4;
-    vel.z += (Math.random() - 0.5) * 0.3;
+    vel.x += (Math.random() - 0.5) * 0.35;
+    vel.z += (Math.random() - 0.5) * 0.25;
 
     shuttle.hit(vel, this.team);
     this.cooldown = HIT_COOLDOWN;
-    // Swing visual
     this.racket.rotation.x = -0.8;
     return true;
   }
 
   updateVisual(dt) {
-    // Ease racket back
     this.racket.rotation.x = THREE.MathUtils.damp(this.racket.rotation.x, 0, 8, dt);
   }
 }
