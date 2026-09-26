@@ -66,6 +66,7 @@ export class EnterFlow {
     const z = this.exterior.nearZ - 11;
     this.camera.position.set(0, 3.6, z);
     this.controls.target.set(0, 1.6, this.exterior.nearZ);
+    this.controls.enabled = false;
     this.controls.enableRotate = false;
     this.controls.enablePan = false;
     this.controls.enableZoom = true;
@@ -99,11 +100,20 @@ export class EnterFlow {
   /** Start enter transition if hovering / clicking door. Returns true if handled. */
   tryEnter() {
     if (this.state !== ViewState.EXTERIOR) return false;
-    // Allow click even if slightly off hover — re-raycast
+    // Allow click even if slightly off hover — re-raycast.
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hits = this.raycaster.intersectObjects(this.exterior.doorTargets, true);
     if (!hits.length) return false;
+    return this._startEnter();
+  }
 
+  /** Start entering without a raycast, for the always-visible HUD fallback. */
+  forceEnter() {
+    if (this.state !== ViewState.EXTERIOR) return false;
+    return this._startEnter();
+  }
+
+  _startEnter() {
     this.exterior.setDoorHover(true);
     this.exterior.setDoorOpenImmediate(Math.max(this.exterior.openAmount, 0.35));
 

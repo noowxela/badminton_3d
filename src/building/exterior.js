@@ -215,7 +215,7 @@ export function createExteriorBuilding() {
 
   // Invisible slightly larger hit target for easier raycast
   const hit = new THREE.Mesh(
-    new THREE.BoxGeometry(doorW + 0.3, doorH + 0.2, 0.4),
+    new THREE.BoxGeometry(doorW + 0.8, doorH + 0.45, 0.8),
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   hit.name = 'HallDoorHit';

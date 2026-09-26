@@ -126,15 +126,23 @@ function onKey(e, down) {
 
 window.addEventListener('keydown', (e) => onKey(e, true));
 window.addEventListener('keyup', (e) => onKey(e, false));
-window.addEventListener('mousemove', (e) => {
-  mouseNdc.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouseNdc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+function setPointerFromClient(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  mouseNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  mouseNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   if (enterFlow) enterFlow.updatePointer(mouseNdc.x, mouseNdc.y);
+}
+
+window.addEventListener('mousemove', (e) => {
+  setPointerFromClient(e.clientX, e.clientY);
   if (gameplayReady && enterFlow?.isInside) {
     match?.setAimFromMouse(mouseNdc, camera);
   }
 });
 window.addEventListener('mousedown', (e) => {
+  setPointerFromClient(e.clientX, e.clientY);
   if (e.button !== 0) return;
   if (e.target.closest && e.target.closest('#hud button, #court-style, .style-btn, #cam-controls')) {
     return;
@@ -154,6 +162,38 @@ window.addEventListener('mousedown', (e) => {
   }
 });
 
+canvas.addEventListener(
+  'touchstart',
+  (e) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    setPointerFromClient(touch.clientX, touch.clientY);
+    if (enterFlow?.isExterior && enterFlow.updateHover()) {
+      // Keep a door tap from being consumed by OrbitControls.
+      e.preventDefault();
+    }
+  },
+  { passive: false },
+);
+
+canvas.addEventListener(
+  'touchend',
+  (e) => {
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    setPointerFromClient(touch.clientX, touch.clientY);
+    if (!enterFlow?.isExterior) return;
+
+    enterFlow.updateHover();
+    if (enterFlow.tryEnter()) {
+      e.preventDefault();
+      hud.setStatus('Entering hall…');
+      canvas.style.cursor = 'default';
+    }
+  },
+  { passive: false },
+);
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -164,18 +204,21 @@ function onEnterState(state) {
   if (state === ViewState.EXTERIOR) {
     applyExteriorAtmosphere(scene);
     hud.setGameplayVisible(false);
-    hud.setStatus('Hover the door · Click to enter');
+    hud.setEnterButtonVisible(true);
+    hud.setStatus('Tap the door or Enter hall to go inside');
     if (hud.controlsHint) {
-      hud.controlsHint.textContent = 'Hover door to open · Click door to enter the hall';
+      hud.controlsHint.textContent = 'Tap the door or Enter hall to go inside';
     }
     canvas.style.cursor = 'default';
   } else if (state === ViewState.ENTERING) {
     hud.setGameplayVisible(false);
+    hud.setEnterButtonVisible(false);
     hud.setStatus('Entering hall…');
     canvas.style.cursor = 'default';
   } else if (state === ViewState.INSIDE) {
     applyStyleAtmosphere(scene, getSavedCourtStyle());
     hud.setGameplayVisible(true);
+    hud.setEnterButtonVisible(false);
     sun.position.set(4, 16, -2);
     if (!gameplayReady) {
       beginGameplay();
@@ -263,6 +306,12 @@ async function init() {
     interiorCamTarget: INTERIOR_CAMERA_TARGET,
     onStateChange: onEnterState,
   });
+  hud.setEnterAction(() => {
+    if (enterFlow?.forceEnter()) {
+      hud.setStatus('Entering hall…');
+      canvas.style.cursor = 'default';
+    }
+  });
   enterFlow.setupExteriorCamera();
   onEnterState(ViewState.EXTERIOR);
 
@@ -278,9 +327,9 @@ async function init() {
       const hovered = enterFlow.updateHover();
       canvas.style.cursor = hovered ? 'pointer' : 'default';
       if (hovered) {
-        hud.setStatus('Click to enter');
+        hud.setStatus('Tap the door or Enter hall to go inside');
       } else if (enterFlow.state === ViewState.EXTERIOR) {
-        hud.setStatus('Hover the door · Click to enter');
+        hud.setStatus('Tap the door or Enter hall to go inside');
       }
     }
 

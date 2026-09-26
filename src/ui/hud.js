@@ -5,13 +5,14 @@ export class Hud {
     this.scoreA = document.getElementById('score-a');
     this.scoreB = document.getElementById('score-b');
     this.status = document.getElementById('status');
+    this.enterButton = document.getElementById('enter-hall');
     this.styleBar = document.getElementById('court-style');
     this.camControls = document.getElementById('cam-controls');
     this.controlsHint = document.getElementById('controls-hint');
     this.scoreboard = document.getElementById('scoreboard');
     if (this.controlsHint) {
       this.controlsHint.textContent =
-        'Hover door to open · Click door to enter the hall';
+        'Tap the door or Enter hall to go inside';
     }
   }
 
@@ -22,6 +23,19 @@ export class Hud {
 
   setStatus(text) {
     this.status.textContent = text;
+  }
+
+  setEnterButtonVisible(visible) {
+    if (this.enterButton) this.enterButton.hidden = !visible;
+  }
+
+  setEnterAction(onEnter) {
+    if (!this.enterButton) return;
+    this.enterButton.onclick = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      onEnter();
+    };
   }
 
   /**

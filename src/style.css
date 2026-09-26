@@ -76,6 +76,26 @@ body,
   font-size: 0.95rem;
 }
 
+.enter-hall {
+  margin-top: 0.6rem;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 80, 140, 0.85);
+  color: #e8eef8;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.55rem 1.15rem;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(8, 16, 32, 0.28);
+}
+
+.enter-hall:hover,
+.enter-hall:focus-visible {
+  background: rgba(40, 120, 200, 0.95);
+}
+
 .court-style {
   margin-top: 0.65rem;
   display: flex;
