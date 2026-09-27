@@ -6,6 +6,7 @@ import { computeHitVelocity } from '../physics/shuttle.js';
 /**
  * Match / rally state machine.
  * States: idle | serving | playing | point | matchover
+ * Modes: play (human) | spectator (AI vs AI watch rally)
  */
 export class Match {
   constructor({ shuttle, human, players, hud, ai }) {
@@ -19,19 +20,62 @@ export class Match {
     this.messageTimer = 0;
     this.pendingPoint = null;
 
+    /** @type {'play'|'spectator'} */
+    this.mode = 'play';
+    this._humanWasHuman = true;
+    this._spectatorPointDone = false;
+    this._stuckTimer = 0;
+    this.onSpectatorPointEnd = null;
+
     this.aim = new THREE.Vector3(0, 0, 4);
     this.raycaster = new THREE.Raycaster();
     this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   }
 
-  start() {
+  start({ spectator = false } = {}) {
     this.score.reset();
     this.hud.setScore(0, 0);
+    this._spectatorPointDone = false;
+    this._stuckTimer = 0;
+    this.setMode(spectator ? 'spectator' : 'play');
     this.prepareServe();
+  }
+
+  setMode(mode) {
+    this.mode = mode === 'spectator' ? 'spectator' : 'play';
+    if (this.mode === 'spectator') {
+      this._humanWasHuman = this.human.isHuman;
+      this.human.isHuman = false;
+      this.human.speed = 5.0;
+    } else {
+      this.human.isHuman = true;
+      this.human.speed = 5.8;
+    }
+    this._refreshTouchUi();
+  }
+
+  /** Switch from watch-rally into human control mid-match. */
+  takeControl() {
+    this.setMode('play');
+    this._spectatorPointDone = false;
+    this.hud.setPlayCtaVisible(false);
+    this.prepareServe();
+    this.hud.setStatus('Your serve — tap Serve / Space / Click');
+  }
+
+  _serveLabels() {
+    const team = this.score.serverTeam;
+    const youServe = team === TEAM.A;
+    const serverLabel = youServe
+      ? 'Serve: You · Near side (−Z)'
+      : 'Serve: AI · Far side (+Z)';
+    const sideLabel = 'You vs AI · You −Z · AI +Z';
+    return { serverLabel, sideLabel, youServe };
   }
 
   prepareServe() {
     this.state = 'serving';
+    this._stuckTimer = 0;
     const team = this.score.serverTeam;
     const z = team === TEAM.A ? -HALF_LENGTH + 1.2 : HALF_LENGTH - 1.2;
     const x = 1.5;
@@ -57,22 +101,30 @@ export class Match {
       p.clampToHalf();
     }
 
-    const who = team === TEAM.A ? 'Your serve — Space / Click to serve' : 'AI serving…';
-    this.hud.setStatus(who);
+    const labels = this._serveLabels();
+    this.hud.setMatchInfo(labels);
     this.hud.setScore(this.score.a, this.score.b);
 
-    if (team === TEAM.B) {
+    if (this.mode === 'spectator') {
+      this.hud.setStatus('Watching rally — AI vs AI');
+      this.messageTimer = 0.55;
+      this._aiServePending = true;
+    } else if (team === TEAM.B) {
+      this.hud.setStatus('AI serving…');
       this.messageTimer = 0.7;
       this._aiServePending = true;
     } else {
+      this.hud.setStatus('Your serve — tap Serve / Space / Click');
       this._aiServePending = false;
       this._attachShuttleToServer();
     }
+    this._refreshTouchUi();
   }
 
   /** Keep shuttle perched near human racket while waiting to serve. */
   _attachShuttleToServer() {
     if (this.state !== 'serving' || this.score.serverTeam !== TEAM.A) return;
+    if (this.mode === 'spectator') return;
     const hp = this.human.position;
     this.shuttle.position.set(hp.x + 0.32, 1.12, hp.z + 0.42);
     this.shuttle.velocity.set(0, 0, 0);
@@ -81,7 +133,6 @@ export class Match {
   }
 
   doServe(team) {
-    // Serve from current shuttle pose (near server)
     const from = this.shuttle.position.clone();
     from.y = Math.max(from.y, 1.05);
 
@@ -96,11 +147,14 @@ export class Match {
     vel.y = Math.max(vel.y, 4.2);
     this.shuttle.serve(from, vel, team);
     this.state = 'playing';
-    this.hud.setStatus('Rally!');
+    this._stuckTimer = 0;
+    this.hud.setStatus(this.mode === 'spectator' ? 'Watching rally…' : 'Rally!');
     this._aiServePending = false;
+    this._refreshTouchUi();
   }
 
   setAimFromMouse(mouseNdc, camera) {
+    if (this.mode === 'spectator') return;
     this.raycaster.setFromCamera(mouseNdc, camera);
     const hit = new THREE.Vector3();
     if (this.raycaster.ray.intersectPlane(this.groundPlane, hit)) {
@@ -113,6 +167,7 @@ export class Match {
   }
 
   onHitRequest() {
+    if (this.mode === 'spectator') return;
     if (this.state === 'serving' && this.score.serverTeam === TEAM.A) {
       this.doServe(TEAM.A);
       return;
@@ -130,9 +185,11 @@ export class Match {
 
   resetRally() {
     if (this.score.winner) {
-      this.start();
+      this.start({ spectator: this.mode === 'spectator' });
       return;
     }
+    this._stuckTimer = 0;
+    this.pendingPoint = false;
     this.prepareServe();
   }
 
@@ -145,37 +202,79 @@ export class Match {
 
     let pointTo = null;
     if (event === 'net' || event === 'out') {
-      // Fault by the team that last hit
       pointTo = this.shuttle.lastHitBy === TEAM.A ? TEAM.B : TEAM.A;
     } else if (event === 'floor') {
-      // In-bounds floor: point to the team on the *other* half
-      // land z>0 (B half) → A scores; land z<0 (A half) → B scores
       pointTo = this.shuttle.position.z > 0 ? TEAM.A : TEAM.B;
     }
 
     if (!pointTo) return;
 
     this.state = 'point';
+    this._stuckTimer = 0;
     const result = this.score.awardPoint(pointTo);
     this.hud.setScore(this.score.a, this.score.b);
+    this.hud.setMatchInfo(this._serveLabels());
 
     const label = pointTo === TEAM.A ? 'Point — You' : 'Point — AI';
+
+    if (this.mode === 'spectator') {
+      this._spectatorPointDone = true;
+      this.hud.setStatus(`${label}  (${this.score.a}–${this.score.b}) — tap Play to take control`);
+      this.hud.setPlayCtaVisible(true);
+      this._refreshTouchUi();
+      if (typeof this.onSpectatorPointEnd === 'function') {
+        this.onSpectatorPointEnd({ pointTo, score: { a: this.score.a, b: this.score.b } });
+      }
+      return;
+    }
+
     if (result.matchOver) {
       this.state = 'matchover';
       const w = this.score.winner === TEAM.A ? 'You win!' : 'AI wins!';
-      this.hud.setStatus(`${w}  (${this.score.a}–${this.score.b})  Space to rematch`);
+      this.hud.setStatus(`${w}  (${this.score.a}–${this.score.b})  Space / New rally to rematch`);
     } else {
       this.hud.setStatus(`${label}  (${this.score.a}–${this.score.b})`);
       this.messageTimer = 1.2;
       this.pendingPoint = true;
     }
+    this._refreshTouchUi();
+  }
+
+  _refreshTouchUi() {
+    if (this.mode === 'spectator') {
+      this.hud.setTouchButtons({ serve: false, hit: false, rallyUrgent: false });
+      return;
+    }
+    const youServe = this.state === 'serving' && this.score.serverTeam === TEAM.A;
+    const canHit = this.state === 'playing';
+    const dead =
+      this.state === 'point' ||
+      this.state === 'idle' ||
+      this.state === 'matchover' ||
+      (this.state === 'playing' && !this.shuttle.inPlay);
+    this.hud.setTouchButtons({
+      serve: youServe,
+      hit: canHit,
+      rallyUrgent: dead && this.state !== 'serving',
+    });
+  }
+
+  /**
+   * True when shuttle is dead / off-play and rally is stuck waiting for reset.
+   */
+  needsRallyReset() {
+    if (this.mode === 'spectator' && this._spectatorPointDone) return false;
+    if (this.state === 'matchover' || this.state === 'idle') return true;
+    if (this.state === 'point' && !this.pendingPoint) return true;
+    if (this.state === 'playing' && !this.shuttle.inPlay) return true;
+    return false;
   }
 
   update(dt, input) {
     if (this.messageTimer > 0) {
       this.messageTimer -= dt;
       if (this.messageTimer <= 0 && this._aiServePending && this.state === 'serving') {
-        this.doServe(TEAM.B);
+        this.doServe(this.score.serverTeam);
       }
       if (this.messageTimer <= 0 && this.pendingPoint && this.state === 'point') {
         this.pendingPoint = false;
@@ -183,18 +282,54 @@ export class Match {
       }
     }
 
+    // Stuck / dead shuttle watchdog — never leave play frozen.
+    if (this.state === 'playing') {
+      if (!this.shuttle.inPlay) {
+        this._stuckTimer += dt;
+        if (this._stuckTimer > 0.6) {
+          this._stuckTimer = 0;
+          // Treat as out if last-hit known, else soft reset.
+          if (this.shuttle.lastHitBy) {
+            this.onShuttleEvent('out');
+          } else {
+            this.hud.setStatus('Shuttle dead — New rally');
+            this._refreshTouchUi();
+          }
+        }
+      } else {
+        this._stuckTimer = 0;
+        // Off-screen / runaway bird
+        const p = this.shuttle.position;
+        if (
+          Math.abs(p.x) > HALF_WIDTH + 4 ||
+          Math.abs(p.z) > HALF_LENGTH + 4 ||
+          p.y > 14 ||
+          p.y < -0.5
+        ) {
+          this.onShuttleEvent('out');
+        }
+      }
+    }
+
     this.human.updateCooldown(dt);
     this.human.updateVisual(dt);
 
-    if (this.state === 'playing' || this.state === 'serving') {
+    if (this.mode === 'play' && (this.state === 'playing' || this.state === 'serving')) {
       this.human.moveHuman(input, dt);
     }
 
-    // Shuttle stays near human while waiting to serve
-    if (this.state === 'serving' && this.score.serverTeam === TEAM.A) {
+    if (
+      this.mode === 'play' &&
+      this.state === 'serving' &&
+      this.score.serverTeam === TEAM.A
+    ) {
       this._attachShuttleToServer();
     }
 
+    // In spectator mode human is treated as AI by SimpleAi (!isHuman).
     this.ai.update(dt, this.shuttle, this.state);
+
+    // Keep touch button state fresh (serve/hit/urgent).
+    if (this.mode === 'play') this._refreshTouchUi();
   }
 }

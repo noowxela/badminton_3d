@@ -2,13 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Badminton Doubles Simulator v1</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app">
       <canvas id="game-canvas"></canvas>
+      <div id="enter-fade" aria-hidden="true"></div>
       <div id="hud">
         <div id="scoreboard">
           <div class="team" id="team-a">
@@ -21,12 +22,26 @@
             <span class="score" id="score-b">0</span>
           </div>
         </div>
+        <div id="match-info" class="match-info" hidden>
+          <span id="serve-info">Serve: You · Near side</span>
+          <span class="sep">·</span>
+          <span id="side-info">You −Z · AI +Z</span>
+        </div>
         <div id="status">Tap the door or Enter hall to go inside</div>
-        <button id="enter-hall" class="enter-hall" type="button" hidden>Enter hall</button>
+        <div id="exterior-actions" class="exterior-actions">
+          <button id="enter-hall" class="enter-hall" type="button" hidden>Enter hall</button>
+          <button id="watch-rally" class="watch-rally" type="button" hidden>Watch rally</button>
+        </div>
+        <button id="play-cta" class="play-cta" type="button" hidden>Play</button>
         <div id="court-style" class="court-style"></div>
         <div id="cam-controls" class="cam-controls"></div>
+        <div id="touch-controls" class="touch-controls" hidden>
+          <button id="btn-serve" class="touch-btn touch-serve" type="button" hidden>Serve</button>
+          <button id="btn-hit" class="touch-btn touch-hit" type="button" hidden>Hit</button>
+          <button id="btn-new-rally" class="touch-btn touch-rally" type="button">New rally</button>
+        </div>
         <div id="controls-hint">
-          WASD move · Mouse aim · Click / Space hit · Right-drag orbit · Wheel zoom · R reset rally
+          Tap the door or Enter hall to go inside
         </div>
       </div>
     </div>

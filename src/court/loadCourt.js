@@ -26,10 +26,10 @@ export const COURT_STYLES = {
   'wood-hall': {
     id: 'wood-hall',
     label: 'Wood Hall',
-    fog: 0xc5d0a0,
-    fogNear: 40,
-    fogFar: 85,
-    bg: 0xb8c96a,
+    fog: 0xd4c4a0,
+    fogNear: 38,
+    fogFar: 88,
+    bg: 0xc8b888,
   },
 };
 
@@ -364,11 +364,11 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
   const doorH = HALL_DOOR_H;
 
   const wallMat = new THREE.MeshBasicMaterial({
-    color: isWood ? 0xb8c96a : 0x8a8e94,
+    color: isWood ? 0xc4b07a : 0x8a8e94,
     side: THREE.DoubleSide,
   });
   const ceilingMat = new THREE.MeshBasicMaterial({
-    color: isWood ? 0xe8ecd8 : 0x3a3e44,
+    color: isWood ? 0xf0e6c8 : 0x3a3e44,
   });
   const fixtureMat = new THREE.MeshBasicMaterial({
     color: isWood ? 0x1a1a1a : 0x22262c,
@@ -446,6 +446,45 @@ export function buildProceduralCourt(styleId = DEFAULT_COURT_STYLE) {
     fix2.position.x = roomW / 2 - 0.2;
     root.add(fix2);
   }
+
+  // Soft ceiling wash panels (read as hall lighting even with MeshBasic court)
+  const washMat = new THREE.MeshBasicMaterial({
+    color: isWood ? 0xfff2d0 : 0xe8f0ff,
+    transparent: true,
+    opacity: isWood ? 0.55 : 0.35,
+  });
+  for (const z of [-roomL / 3.2, 0, roomL / 3.2]) {
+    const wash = new THREE.Mesh(new THREE.BoxGeometry(roomW * 0.55, 0.06, 1.1), washMat);
+    wash.position.set(0, wallH - 0.55, z);
+    root.add(wash);
+  }
+
+  // Far-end board / banner (spectator wall)
+  const bannerW = Math.min(roomW * 0.62, 8.5);
+  const bannerH = 1.35;
+  const bannerMat = new THREE.MeshBasicMaterial({
+    color: isWood ? 0x3d5a8c : 0x1a3a6e,
+  });
+  const banner = new THREE.Mesh(new THREE.BoxGeometry(bannerW, bannerH, 0.08), bannerMat);
+  banner.position.set(0, 4.2, roomL / 2 - wallT / 2 - 0.06);
+  banner.name = 'FarEndBanner';
+  root.add(banner);
+  const bannerTrim = new THREE.Mesh(
+    new THREE.BoxGeometry(bannerW + 0.18, bannerH + 0.18, 0.05),
+    new THREE.MeshBasicMaterial({ color: isWood ? 0xe8dcc0 : 0xd0d4dc }),
+  );
+  bannerTrim.position.set(0, 4.2, roomL / 2 - wallT / 2 - 0.02);
+  root.add(bannerTrim);
+  // Accent stripe on banner
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(bannerW * 0.92, 0.12, 0.02),
+    new THREE.MeshBasicMaterial({ color: isWood ? 0xf0c040 : 0x5aa0ff }),
+  );
+  stripe.position.set(0, 4.2 + bannerH * 0.32, roomL / 2 - wallT / 2 - 0.11);
+  root.add(stripe);
+  const stripe2 = stripe.clone();
+  stripe2.position.y = 4.2 - bannerH * 0.32;
+  root.add(stripe2);
 
   root.userData.hall = { roomW, roomL, wallH, nearZ, doorW, doorH };
   return root;

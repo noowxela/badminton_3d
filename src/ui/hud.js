@@ -6,13 +6,25 @@ export class Hud {
     this.scoreB = document.getElementById('score-b');
     this.status = document.getElementById('status');
     this.enterButton = document.getElementById('enter-hall');
+    this.watchButton = document.getElementById('watch-rally');
+    this.playCta = document.getElementById('play-cta');
     this.styleBar = document.getElementById('court-style');
     this.camControls = document.getElementById('cam-controls');
     this.controlsHint = document.getElementById('controls-hint');
     this.scoreboard = document.getElementById('scoreboard');
+    this.matchInfo = document.getElementById('match-info');
+    this.serveInfo = document.getElementById('serve-info');
+    this.sideInfo = document.getElementById('side-info');
+    this.touchControls = document.getElementById('touch-controls');
+    this.btnServe = document.getElementById('btn-serve');
+    this.btnHit = document.getElementById('btn-hit');
+    this.btnNewRally = document.getElementById('btn-new-rally');
+    this.fadeEl = document.getElementById('enter-fade');
     if (this.controlsHint) {
-      this.controlsHint.textContent =
-        'Tap the door or Enter hall to go inside';
+      this.controlsHint.textContent = 'Tap the door or Enter hall to go inside';
+    }
+    if (this.sideInfo) {
+      this.sideInfo.textContent = 'You −Z · AI +Z';
     }
   }
 
@@ -25,8 +37,19 @@ export class Hud {
     this.status.textContent = text;
   }
 
+  /**
+   * Serve / side clarity line under the scoreboard.
+   * @param {{ serverLabel: string, sideLabel?: string }} info
+   */
+  setMatchInfo(info) {
+    if (!this.matchInfo || !this.serveInfo) return;
+    this.serveInfo.textContent = info.serverLabel;
+    if (info.sideLabel && this.sideInfo) this.sideInfo.textContent = info.sideLabel;
+  }
+
   setEnterButtonVisible(visible) {
     if (this.enterButton) this.enterButton.hidden = !visible;
+    if (this.watchButton) this.watchButton.hidden = !visible;
   }
 
   setEnterAction(onEnter) {
@@ -38,15 +61,40 @@ export class Hud {
     };
   }
 
+  setWatchAction(onWatch) {
+    if (!this.watchButton) return;
+    this.watchButton.onclick = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      onWatch();
+    };
+  }
+
+  setPlayCtaVisible(visible) {
+    if (this.playCta) this.playCta.hidden = !visible;
+  }
+
+  setPlayCtaAction(onPlay) {
+    if (!this.playCta) return;
+    this.playCta.onclick = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      onPlay();
+    };
+  }
+
   /**
    * Dim / hide match HUD while outside the hall.
    * Status + hint stay visible for enter prompts.
    */
   setGameplayVisible(visible) {
-    const mode = visible ? '' : 'hud-dim';
     if (this.scoreboard) {
       this.scoreboard.classList.toggle('hud-dim', !visible);
       this.scoreboard.style.visibility = visible ? 'visible' : 'hidden';
+    }
+    if (this.matchInfo) {
+      this.matchInfo.hidden = !visible;
+      this.matchInfo.classList.toggle('hud-dim', !visible);
     }
     if (this.styleBar) {
       this.styleBar.classList.toggle('hud-dim', !visible);
@@ -56,7 +104,54 @@ export class Hud {
       this.camControls.classList.toggle('hud-dim', !visible);
       this.camControls.style.visibility = visible ? 'visible' : 'hidden';
     }
-    void mode;
+    if (this.touchControls) {
+      this.touchControls.hidden = !visible;
+    }
+    if (!visible) {
+      this.setPlayCtaVisible(false);
+      this.setTouchButtons({ serve: false, hit: false, rallyUrgent: false });
+    }
+  }
+
+  /**
+   * Large on-screen Hit / Serve / New rally controls (especially for touch).
+   */
+  setTouchButtons({ serve = false, hit = false, rallyUrgent = false } = {}) {
+    if (this.btnServe) this.btnServe.hidden = !serve;
+    if (this.btnHit) this.btnHit.hidden = !hit;
+    if (this.btnNewRally) {
+      this.btnNewRally.classList.toggle('urgent', !!rallyUrgent);
+    }
+  }
+
+  setTouchActions({ onServe, onHit, onNewRally }) {
+    const bind = (el, fn) => {
+      if (!el || !fn) return;
+      const handler = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        fn();
+      };
+      el.onclick = handler;
+      // Extra touchstart for snappier mobile response without waiting for click.
+      el.ontouchend = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        fn();
+      };
+    };
+    bind(this.btnServe, onServe);
+    bind(this.btnHit, onHit);
+    bind(this.btnNewRally, onNewRally);
+  }
+
+  /** Full-screen fade for enter transition. opacity 0..1 */
+  setFade(opacity) {
+    if (!this.fadeEl) return;
+    const o = Math.max(0, Math.min(1, opacity));
+    if (o > 0.02) this.fadeEl.classList.add('active');
+    else this.fadeEl.classList.remove('active');
+    this.fadeEl.style.opacity = String(o);
   }
 
   /**

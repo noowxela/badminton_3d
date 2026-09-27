@@ -16,7 +16,7 @@ npm run export-court   # optional if court.glb already present
 npm run dev
 ```
 
-Open the URL Vite prints (default `http://localhost:5173`).
+Open the URL Vite prints (often `http://localhost:5173/badminton_3d/` because of the Pages base).
 
 ## Live demo and deployment
 
@@ -31,19 +31,31 @@ npm run build
 npm run preview
 ```
 
+See **[docs/deploy-pages.md](docs/deploy-pages.md)** for Vite `base: '/badminton_3d/'` and Pages notes.
+
 ## Enter the hall
 
-App starts **outside** a badminton-hall building. Hover the door to open it; **click the door** to walk the camera inside to the broadcast court view, then play as usual.
+App starts **outside** a badminton-hall building.
+
+- **Desktop:** hover the door to open it, **click** to walk inside (door-open + fade polish).
+- **Mobile:** one-tap the door, or use **Enter hall** (`forceEnter`) so you never get stuck.
+- **Watch rally:** from exterior, autoplays a short AI vs AI point, then **Play** to take control.
+
+Full detail: **[docs/enter-and-controls.md](docs/enter-and-controls.md)**.
 
 ## Controls
 
 | Input | Action |
 |--------|--------|
-| **Hover door** (outside) | Door opens |
-| **Click door** (outside) | Enter hall → gameplay |
+| **Hover door** (desktop, outside) | Door opens |
+| **Click / tap door** (outside) | Enter hall → gameplay |
+| **Enter hall** button | Force enter (no raycast) |
+| **Watch rally** button | Enter + AI vs AI demo → **Play** CTA |
+| **Serve / Hit** (on-screen) | Touch-friendly serve & hit once inside |
+| **New rally** | Reset rally when shuttle is dead / stuck |
 | **W A S D** / arrows | Move (human, own half) |
 | **Mouse** | Aim landing target (opponent half) |
-| **Click** / **Space** | Serve or hit (inside only) |
+| **Click** / **Space** | Serve or hit (inside, play mode) |
 | **Right-drag** | Orbit camera (inside) |
 | **Middle-drag** | Pan camera |
 | **Wheel** | Zoom |
@@ -52,11 +64,14 @@ App starts **outside** a badminton-hall building. Hover the door to open it; **c
 
 Scoring: rally point. First to 21 with a 2-point lead; continues until lead of 2 or **30** cap.
 
+HUD always shows **You vs AI**, who serves, and side (You −Z / AI +Z).
+
 ## Project layout
 
 ```
 badminton_3d/
 ├── blender/build_court.py   # BWF court + stubs → GLB
+├── docs/                    # enter / controls / Pages notes
 ├── scripts/export-court.sh
 ├── public/assets/court.glb  # exported asset
 ├── src/
@@ -70,6 +85,11 @@ badminton_3d/
 │   └── ui/hud.js
 └── package.json
 ```
+
+## Docs
+
+- [Enter hall, door hover vs tap, OrbitControls](docs/enter-and-controls.md)
+- [Vite base + GitHub Pages](docs/deploy-pages.md)
 
 ## Re-export court from Blender
 
@@ -123,6 +143,8 @@ npm run build
 - Net collision is a thin plane test, not full mesh contact
 - Serve rules (service courts, faults) are simplified
 - Camera defaults to a broadcast elevated view; orbit via right-drag (clamped so the court stays framed)
+- Soft shadows use a smaller map on touch devices; wood-hall point lights are toned down on phones
+- Watch rally plays one spectator point then waits for **Play** (not a full AI match)
 
 ## License
 

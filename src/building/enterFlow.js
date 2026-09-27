@@ -8,7 +8,7 @@ export const ViewState = Object.freeze({
 });
 
 /**
- * Raycast door hover/click + camera enter lerp.
+ * Raycast door hover/click + camera enter lerp + door-open polish + fade hooks.
  * Left-click only enters while exterior; once inside, caller resumes hit/serve.
  */
 export class EnterFlow {
@@ -20,14 +20,24 @@ export class EnterFlow {
    * @param {{ x:number,y:number,z:number }} opts.interiorCamPos
    * @param {{ x:number,y:number,z:number }} opts.interiorCamTarget
    * @param {(state: string) => void} [opts.onStateChange]
+   * @param {(opacity: number) => void} [opts.onFade]
    */
-  constructor({ camera, controls, exterior, interiorCamPos, interiorCamTarget, onStateChange }) {
+  constructor({
+    camera,
+    controls,
+    exterior,
+    interiorCamPos,
+    interiorCamTarget,
+    onStateChange,
+    onFade,
+  }) {
     this.camera = camera;
     this.controls = controls;
     this.exterior = exterior;
     this.interiorCamPos = interiorCamPos;
     this.interiorCamTarget = interiorCamTarget;
     this.onStateChange = onStateChange || (() => {});
+    this.onFade = onFade || (() => {});
 
     this.state = ViewState.EXTERIOR;
     this.raycaster = new THREE.Raycaster();
@@ -35,12 +45,14 @@ export class EnterFlow {
     this.doorHovered = false;
 
     this._enterT = 0;
-    this._enterDuration = 2.1;
+    this._enterDuration = 2.4;
     this._fromPos = new THREE.Vector3();
     this._fromTarget = new THREE.Vector3();
     this._toPos = new THREE.Vector3();
     this._toTarget = new THREE.Vector3();
     this._tmp = new THREE.Vector3();
+    this._doorWarmup = 0;
+    this._doorWarmupDone = false;
   }
 
   get isExterior() {
@@ -75,6 +87,7 @@ export class EnterFlow {
     this.controls.update();
     this.controls.saveState();
     this.exterior.setDoorOpenImmediate(0);
+    this.onFade(0);
     this.setState(ViewState.EXTERIOR);
   }
 
@@ -114,8 +127,11 @@ export class EnterFlow {
   }
 
   _startEnter() {
+    // Deliberate door-open: swing fully open before / while camera moves.
     this.exterior.setDoorHover(true);
-    this.exterior.setDoorOpenImmediate(Math.max(this.exterior.openAmount, 0.35));
+    this.exterior.setDoorOpenImmediate(Math.max(this.exterior.openAmount, 0.15));
+    // Nudge target open so updateDoor animates the rest of the swing.
+    this.exterior.setDoorHover(true);
 
     this._fromPos.copy(this.camera.position);
     this._fromTarget.copy(this.controls.target);
@@ -131,19 +147,36 @@ export class EnterFlow {
     this._midTarget = new THREE.Vector3(0, 1.2, 2);
 
     this._enterT = 0;
+    this._doorWarmup = 0;
+    this._doorWarmupDone = false;
     this.controls.enabled = false;
+    this.onFade(0);
     this.setState(ViewState.ENTERING);
     return true;
   }
 
   /**
-   * Advance door + enter camera. Call every frame.
+   * Advance door + enter camera + fade. Call every frame.
    * @returns {'none'|'hover'|'entered'}
    */
   update(dt) {
     this.exterior.updateDoor(dt);
 
     if (this.state === ViewState.ENTERING) {
+      // Brief door-open beat before camera commits through the frame.
+      if (!this._doorWarmupDone) {
+        this._doorWarmup += dt;
+        this.exterior.setDoorHover(true);
+        // Soft fade-up as door swings
+        const warm = Math.min(1, this._doorWarmup / 0.45);
+        this.onFade(warm * 0.35);
+        if (this._doorWarmup >= 0.45 || this.exterior.openAmount > 0.85) {
+          this._doorWarmupDone = true;
+          this.exterior.setDoorOpenImmediate(1);
+        }
+        return 'none';
+      }
+
       this._enterT += dt / this._enterDuration;
       const t = Math.min(1, this._enterT);
       // Smoothstep ease
@@ -162,6 +195,14 @@ export class EnterFlow {
         this.controls.target.lerpVectors(this._midTarget, this._toTarget, eu);
       }
       this.camera.lookAt(this.controls.target);
+
+      // Full-screen fade: peak near doorway, clear as we settle inside.
+      // Triangle peak around e≈0.4–0.55 so the cut feels intentional.
+      let fade = 0;
+      if (e < 0.35) fade = (e / 0.35) * 0.85;
+      else if (e < 0.55) fade = 0.85;
+      else fade = 0.85 * (1 - (e - 0.55) / 0.45);
+      this.onFade(Math.max(0, Math.min(1, fade)));
 
       // Keep door open during enter
       this.exterior.setDoorHover(true);
@@ -193,6 +234,7 @@ export class EnterFlow {
     this.controls.saveState();
     // Leave door open after enter
     this.exterior.setDoorOpenImmediate(1);
+    this.onFade(0);
     this.setState(ViewState.INSIDE);
   }
 }
